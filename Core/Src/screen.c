@@ -1,5 +1,6 @@
 #include "screen.h"
 
+#include <complex.h>
 #include "font.h"
 
 void DrawCharacter(Pixel *screen_buffer, size_t row, size_t col, uint8_t character, Font font, bool underlined) {
@@ -80,3 +81,45 @@ void TestFonts(Pixel *screen_buffer) {
     }
   }
 }
+
+#define MANDELBROT_ITERATIONS 200
+
+float mandelbrot(float complex z) {
+  float complex v = 0;
+
+  for (size_t n = 0; n < MANDELBROT_ITERATIONS; ++n) {
+    v = v * v + z;
+    if (cabsf(v) > 2.0) {
+      return (float)n / (float)MANDELBROT_ITERATIONS;
+    }
+  }
+
+  return 0.0;
+}
+
+#define MANDELBROT_X -0.7453
+#define MANDELBROT_Y 0.1127
+#define MANDELBROT_R 6.5e-4
+
+#define MANDELBROT_X_MIN (MANDELBROT_X - MANDELBROT_R)
+#define MANDELBROT_Y_MIN (MANDELBROT_Y - MANDELBROT_R)
+#define MANDELBROT_X_MAX (MANDELBROT_X + MANDELBROT_R)
+#define MANDELBROT_Y_MAX (MANDELBROT_Y + MANDELBROT_R)
+
+#define MARGIN_X ((SCREEN_WIDTH - SCREEN_HEIGHT) / 2)
+
+void TestMandelbrot(Pixel *screen_buffer) {
+  
+  for (size_t screen_x = MARGIN_X; screen_x < SCREEN_WIDTH - MARGIN_X; ++screen_x) {
+    float x = ((float)screen_x / (float)SCREEN_HEIGHT) * (MANDELBROT_X_MAX - MANDELBROT_X_MIN) + MANDELBROT_X_MIN;
+
+    for (size_t screen_y = 0; screen_y < SCREEN_HEIGHT; ++screen_y) {
+      float y = ((float)screen_y / (float)SCREEN_HEIGHT) * (MANDELBROT_Y_MAX - MANDELBROT_Y_MIN) + MANDELBROT_Y_MIN;
+
+      Pixel pixel = (Pixel)(mandelbrot(x + y * I) * 16.0) << 4;
+
+      screen_buffer[screen_y * SCREEN_WIDTH + screen_x] = pixel;
+    }
+  }
+}
+

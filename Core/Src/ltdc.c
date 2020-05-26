@@ -22,9 +22,11 @@
 
 /* USER CODE BEGIN 0 */
 
-#include "screen.h"
-
 Pixel screen_buffer[SCREEN_WIDTH * SCREEN_HEIGHT];
+
+Pixel* GetScreenBuffer(void) {
+  return screen_buffer;
+}
 
 /* USER CODE END 0 */
 
@@ -84,8 +86,6 @@ void HAL_LTDC_MspInit(LTDC_HandleTypeDef* ltdcHandle)
   if(ltdcHandle->Instance==LTDC)
   {
   /* USER CODE BEGIN LTDC_MspInit 0 */
-
-  TestFonts(screen_buffer);
 
   /* USER CODE END LTDC_MspInit 0 */
     /* LTDC clock enable */

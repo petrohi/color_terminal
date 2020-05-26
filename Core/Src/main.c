@@ -109,6 +109,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   printf("Hello World\n");
+  TestMandelbrot(GetScreenBuffer());
 
   /* USER CODE END 2 */
 

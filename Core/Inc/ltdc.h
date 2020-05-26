@@ -28,6 +28,8 @@
 
 /* USER CODE BEGIN Includes */
 
+#include "screen.h"
+
 /* USER CODE END Includes */
 
 extern LTDC_HandleTypeDef hltdc;
@@ -39,6 +41,8 @@ extern LTDC_HandleTypeDef hltdc;
 void MX_LTDC_Init(void);
 
 /* USER CODE BEGIN Prototypes */
+
+Pixel* GetScreenBuffer(void);
 
 /* USER CODE END Prototypes */
 
