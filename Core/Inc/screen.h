@@ -21,6 +21,7 @@ typedef uint8_t Pixel;
 
 Pixel screen_buffer[SCREEN_WIDTH * SCREEN_HEIGHT];
 
-void DrawCharacter(Pixel *screen_buffer, size_t row, size_t col, uint8_t character, Font font, bool underlined);
+void DrawCharacter(Pixel *screen_buffer, size_t row, size_t col, uint8_t character, Font font, bool underlined, Pixel active, Pixel inactive);
 void TestFonts(Pixel *screen_buffer);
 void TestMandelbrot(Pixel *screen_buffer);
+void TestColors(Pixel *screen_buffer);
