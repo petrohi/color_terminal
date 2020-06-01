@@ -1,6 +1,11 @@
 .mxproject
 build
 itm.txt
+*.swp
+
+GPATH
+GRTAGS
+GTAGS
 
 Drivers/CMSIS/Core
 Drivers/CMSIS/Core_A
