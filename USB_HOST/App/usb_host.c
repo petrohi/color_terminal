@@ -48,6 +48,18 @@ ApplicationTypeDef Appli_state = APPLICATION_IDLE;
  */
 /* USER CODE BEGIN 0 */
 
+uint8_t MX_USBH_HID_KeyboardDecode() {
+  if (Appli_state == APPLICATION_READY) {
+    HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
+
+    if (info) {
+      return info->keys[0];
+    }
+  }
+
+  return 0;
+}
+
 /* USER CODE END 0 */
 
 /*

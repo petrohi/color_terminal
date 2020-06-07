@@ -33,6 +33,8 @@
 
 /* USER CODE BEGIN INCLUDE */
 
+uint8_t MX_USBH_HID_KeyboardDecode();
+
 /* USER CODE END INCLUDE */
 
 /** @addtogroup USBH_OTG_DRIVER

@@ -19,9 +19,15 @@ typedef enum {
 
 typedef uint8_t Pixel;
 
-Pixel screen_buffer[SCREEN_WIDTH * SCREEN_HEIGHT];
+void ClearScreen(Pixel *screen_buffer, Pixel inactive);
 
-void DrawCharacter(Pixel *screen_buffer, size_t row, size_t col, uint8_t character, Font font, bool underlined, Pixel active, Pixel inactive);
+void DrawCharacter(Pixel *screen_buffer, size_t row, size_t col,
+                   uint8_t character, Font font, bool underlined, Pixel active,
+                   Pixel inactive);
+
 void TestFonts(Pixel *screen_buffer);
-void TestMandelbrot(Pixel *screen_buffer);
+
+void TestMandelbrot(Pixel *screen_buffer, float window_x, float window_y,
+                    float window_r, bool (*cancel)());
+
 void TestColors(Pixel *screen_buffer);
