@@ -132,7 +132,8 @@ void MX_LTDC_Init(void)
     Error_Handler();
   }
 
-  if (HAL_LTDC_ConfigCLUT(&hltdc, (uint32_t *) clutTable, sizeof(clutTable) / sizeof(CLUTEntry), 0) != HAL_OK) {
+  if (HAL_LTDC_ConfigCLUT(&hltdc, (uint32_t *)clutTable,
+                          sizeof(clutTable) / sizeof(CLUTEntry), 0) != HAL_OK) {
     Error_Handler();
   }
 

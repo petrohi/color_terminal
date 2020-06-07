@@ -20,10 +20,10 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
 #include "ltdc.h"
 #include "usart.h"
 #include "usb_host.h"
-#include "usbh_hid_keybd.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -31,6 +31,8 @@
 
 #include <stdio.h>
 #include <string.h>
+
+#include "usbh_hid_keybd.h"
 
 /* USER CODE END Includes */
 
@@ -159,14 +161,15 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_LTDC_Init();
   MX_USART1_UART_Init();
   MX_USB_HOST_Init();
   /* USER CODE BEGIN 2 */
 
   printf("Hello World\n");
-  TestColors(GetScreenBuffer());
-  //TestFonts(GetScreenBuffer());
+  //TestColors(GetScreenBuffer());
+  TestFonts(GetScreenBuffer());
 	//ClearScreen(GetScreenBuffer(), 15);
 	//ClearScreen(GetScreenBuffer(), 0);
 
