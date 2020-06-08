@@ -59,6 +59,8 @@
 
 /* USER CODE BEGIN PV */
 
+char buffer[256];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -129,6 +131,11 @@ void test_mandelbrot() {
                    cancel_mandelbrot);
 
     render = false;
+
+    size_t size =
+        snprintf(buffer, sizeof(buffer), "Rendered x=%e y=%e r=%e\r\n",
+                 window_x, window_y, window_r);
+    Transmit((uint8_t *)buffer, size);
   }
 }
 /* USER CODE END 0 */
@@ -168,8 +175,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   printf("Hello World\n");
+
   //TestColors(GetScreenBuffer());
-  TestFonts(GetScreenBuffer());
+  //TestFonts(GetScreenBuffer());
 	//ClearScreen(GetScreenBuffer(), 15);
 	//ClearScreen(GetScreenBuffer(), 0);
 
@@ -184,7 +192,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-		// test_mandelbrot();
+		test_mandelbrot();
   }
   /* USER CODE END 3 */
 }
