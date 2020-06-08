@@ -40,6 +40,8 @@ void MX_USART1_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
+void Transmit(uint8_t *data, uint16_t size);
+
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
