@@ -59,6 +59,7 @@
 
 /* USER CODE BEGIN PV */
 
+char rx_buffer[256];
 char buffer[256];
 
 /* USER CODE END PV */
@@ -176,10 +177,13 @@ int main(void)
 
   printf("Hello World\n");
 
-  //TestColors(GetScreenBuffer());
-  //TestFonts(GetScreenBuffer());
-	//ClearScreen(GetScreenBuffer(), 15);
-	//ClearScreen(GetScreenBuffer(), 0);
+  // TestColors(GetScreenBuffer());
+  // TestFonts(GetScreenBuffer());
+  // ClearScreen(GetScreenBuffer(), 15);
+  // ClearScreen(GetScreenBuffer(), 0);
+
+  Receive((uint8_t *)rx_buffer, sizeof(rx_buffer));
+  int count = 0;
 
   /* USER CODE END 2 */
 
@@ -192,7 +196,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-		test_mandelbrot();
+    int new_count = (int)ReceiveByteCount();
+
+    if (new_count != count) {
+      count = new_count;
+      printf("Receive byte count %d\n", count);
+    }
+
+    test_mandelbrot();
   }
   /* USER CODE END 3 */
 }

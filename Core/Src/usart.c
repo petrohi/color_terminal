@@ -22,10 +22,15 @@
 
 /* USER CODE BEGIN 0 */
 
-void Transmit(uint8_t *data, uint16_t size) {
-  while (HAL_UART_Transmit_DMA(&huart1, data, size) != HAL_OK)
-    ;
+bool Transmit(uint8_t *data, uint16_t size) {
+  return (HAL_UART_Transmit_DMA(&huart1, data, size) != HAL_OK);
 }
+
+bool Receive(uint8_t *data, uint16_t size) {
+  return (HAL_UART_Receive_DMA(&huart1, data, size) != HAL_OK);
+}
+
+uint32_t ReceiveByteCount() { return huart1.hdmarx->Instance->NDTR; }
 
 /* USER CODE END 0 */
 
@@ -86,7 +91,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     hdma_usart1_rx.Init.MemInc = DMA_MINC_ENABLE;
     hdma_usart1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
     hdma_usart1_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    hdma_usart1_rx.Init.Mode = DMA_NORMAL;
+    hdma_usart1_rx.Init.Mode = DMA_CIRCULAR;
     hdma_usart1_rx.Init.Priority = DMA_PRIORITY_LOW;
     hdma_usart1_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&hdma_usart1_rx) != HAL_OK)

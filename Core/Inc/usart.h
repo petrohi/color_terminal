@@ -28,6 +28,8 @@
 
 /* USER CODE BEGIN Includes */
 
+#include <stdbool.h>
+
 /* USER CODE END Includes */
 
 extern UART_HandleTypeDef huart1;
@@ -40,7 +42,9 @@ void MX_USART1_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
-void Transmit(uint8_t *data, uint16_t size);
+bool Transmit(uint8_t *data, uint16_t size);
+bool Receive(uint8_t *data, uint16_t size);
+uint32_t ReceiveByteCount();
 
 /* USER CODE END Prototypes */
 
