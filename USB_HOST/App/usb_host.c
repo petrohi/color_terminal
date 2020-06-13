@@ -48,16 +48,18 @@ ApplicationTypeDef Appli_state = APPLICATION_IDLE;
  */
 /* USER CODE BEGIN 0 */
 
-uint8_t MX_USBH_HID_KeyboardDecode() {
-  if (Appli_state == APPLICATION_READY) {
-    HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
+void SetLedState(bool caps, bool scroll, bool num) {
+  uint8_t led_state = (scroll ? 0x4 : 0) | (caps ? 0x2 : 0) | (num ? 1 : 0);
+  while (USBH_HID_SetReport(&hUsbHostHS, 0x02, 0x0, &led_state, 1) == USBH_BUSY)
+    ;
+}
 
-    if (info) {
-      return info->keys[0];
-    }
+HID_KEYBD_Info_TypeDef *MX_USBH_HID_KeyboardDecode() {
+  if (Appli_state == APPLICATION_READY) {
+    return USBH_HID_GetKeybdInfo(&hUsbHostHS);
   }
 
-  return 0;
+  return NULL;
 }
 
 /* USER CODE END 0 */

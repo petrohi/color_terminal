@@ -33,6 +33,7 @@
 #include <string.h>
 
 #include "usbh_hid_keybd.h"
+#include "terminal.h"
 
 /* USER CODE END Includes */
 
@@ -84,7 +85,8 @@ int _write(int file, char *ptr, int len) {
 
 bool cancel_mandelbrot() {
   MX_USB_HOST_Process();
-  return (MX_USBH_HID_KeyboardDecode() == KEY_ESCAPE);
+  HID_KEYBD_Info_TypeDef *info = MX_USBH_HID_KeyboardDecode();
+  return (info && info->keys[0] == KEY_ESCAPE);
 }
 
 void test_mandelbrot() {
@@ -95,36 +97,40 @@ void test_mandelbrot() {
 
   static bool render = true;
 
-  switch (MX_USBH_HID_KeyboardDecode()) {
-  case KEY_KEYPAD_8_UP_ARROW:
-    window_y -= (window_r / 4.0);
-    render = true;
-    break;
+  HID_KEYBD_Info_TypeDef *info = MX_USBH_HID_KeyboardDecode();
 
-  case KEY_KEYPAD_2_DOWN_ARROW:
-    window_y += (window_r / 4.0);
-    render = true;
-    break;
+  if (info) {
+    switch (info->keys[0]) {
+    case KEY_KEYPAD_8_UP_ARROW:
+      window_y -= (window_r / 4.0);
+      render = true;
+      break;
 
-  case KEY_KEYPAD_4_LEFT_ARROW:
-    window_x -= (window_r / 4.0);
-    render = true;
-    break;
+    case KEY_KEYPAD_2_DOWN_ARROW:
+      window_y += (window_r / 4.0);
+      render = true;
+      break;
 
-  case KEY_KEYPAD_6_RIGHT_ARROW:
-    window_x += (window_r / 4.0);
-    render = true;
-    break;
+    case KEY_KEYPAD_4_LEFT_ARROW:
+      window_x -= (window_r / 4.0);
+      render = true;
+      break;
 
-  case KEY_KEYPAD_PLUS:
-    window_r *= 1.25;
-    render = true;
-    break;
+    case KEY_KEYPAD_6_RIGHT_ARROW:
+      window_x += (window_r / 4.0);
+      render = true;
+      break;
 
-  case KEY_KEYPAD_MINUS:
-    window_r *= 0.75;
-    render = true;
-    break;
+    case KEY_KEYPAD_PLUS:
+      window_r *= 1.25;
+      render = true;
+      break;
+
+    case KEY_KEYPAD_MINUS:
+      window_r *= 0.75;
+      render = true;
+      break;
+    }
   }
 
   if (render) {
@@ -139,6 +145,9 @@ void test_mandelbrot() {
     Transmit((uint8_t *)buffer, size);
   }
 }
+
+Terminal_t terminal;
+
 /* USER CODE END 0 */
 
 /**
@@ -177,13 +186,17 @@ int main(void)
 
   printf("Hello World\n");
 
-  // TestColors(GetScreenBuffer());
+  TerminalCallbacks_t callbacks = {.keyboard_set_leds = SetLedState,
+                                   .uart_transmit = Transmit};
+  Terminal_Init(&terminal, &callbacks);
+
+  TestColors(GetScreenBuffer());
   // TestFonts(GetScreenBuffer());
   // ClearScreen(GetScreenBuffer(), 15);
   // ClearScreen(GetScreenBuffer(), 0);
 
-  Receive((uint8_t *)rx_buffer, sizeof(rx_buffer));
-  int count = 0;
+  //Receive((uint8_t *)rx_buffer, sizeof(rx_buffer));
+  //int count = 0;
 
   /* USER CODE END 2 */
 
@@ -196,14 +209,22 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    int new_count = (int)ReceiveByteCount();
+    //int new_count = (int)ReceiveByteCount();
 
-    if (new_count != count) {
-      count = new_count;
-      printf("Receive byte count %d\n", count);
+    //if (new_count != count) {
+    //  count = new_count;
+    //  printf("Receive byte count %d\n", count);
+    //}
+
+    //test_mandelbrot();
+
+    HID_KEYBD_Info_TypeDef *info = MX_USBH_HID_KeyboardDecode();
+    if (info) {
+      Terminal_HandleShift(&terminal, info->lshift || info->rshift);
+      Terminal_HandleAlt(&terminal, info->lalt || info->ralt);
+      Terminal_HandleCtrl(&terminal, info->lctrl || info->rctrl);
+      Terminal_HandleKey(&terminal, info->keys[0]);
     }
-
-    test_mandelbrot();
   }
   /* USER CODE END 3 */
 }

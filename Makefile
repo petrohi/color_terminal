@@ -78,7 +78,8 @@ Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_ltdc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_ltdc_ex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dsi.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
-Core/Src/dma.c
+Core/Src/dma.c \
+Core/Src/terminal.c
 
 # ASM sources
 ASM_SOURCES =  \

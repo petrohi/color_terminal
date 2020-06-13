@@ -33,7 +33,12 @@
 
 /* USER CODE BEGIN INCLUDE */
 
-uint8_t MX_USBH_HID_KeyboardDecode();
+#include <stdbool.h>
+
+#include "usbh_hid_keybd.h"
+
+HID_KEYBD_Info_TypeDef *MX_USBH_HID_KeyboardDecode();
+void SetLedState(bool caps, bool scroll, bool num);
 
 /* USER CODE END INCLUDE */
 

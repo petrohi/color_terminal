@@ -22,12 +22,12 @@
 
 /* USER CODE BEGIN 0 */
 
-bool Transmit(uint8_t *data, uint16_t size) {
-  return (HAL_UART_Transmit_DMA(&huart1, data, size) != HAL_OK);
+void Transmit(uint8_t *data, uint16_t size) {
+  while (HAL_UART_Transmit_DMA(&huart1, data, size) != HAL_OK);
 }
 
-bool Receive(uint8_t *data, uint16_t size) {
-  return (HAL_UART_Receive_DMA(&huart1, data, size) != HAL_OK);
+void Receive(uint8_t *data, uint16_t size) {
+  while (HAL_UART_Receive_DMA(&huart1, data, size) != HAL_OK);
 }
 
 uint32_t ReceiveByteCount() { return huart1.hdmarx->Instance->NDTR; }
