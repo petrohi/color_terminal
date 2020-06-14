@@ -23,6 +23,9 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
                            uint8_t character, enum font font, bool underlined,
                            color_t active, color_t inactive);
 
+void screen_draw_cursor(struct screen *screen, size_t row, size_t col,
+                        color_t color);
+
 void screen_test_fonts(struct screen *screen);
 
 void screen_test_mandelbrot(struct screen *screen, float window_x,

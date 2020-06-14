@@ -38,7 +38,7 @@
 #include "usbh_hid_keybd.h"
 #include "terminal.h"
 
-void MX_USBH_HID_KeyboardHandle(struct terminal *terminal);
+void keyboard_handle(struct terminal *terminal);
 void keyboard_set_leds(struct lock_state state);
 
 /* USER CODE END INCLUDE */

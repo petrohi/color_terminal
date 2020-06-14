@@ -3,6 +3,9 @@
 #include <memory.h>
 #include <stdio.h>
 
+#define CURSOR_ON_COUNTER 1000
+#define CURSOR_OFF_COUNTER 200
+
 void terminal_init(struct terminal *terminal,
                    const struct terminal_callbacks *callbacks) {
   terminal->callbacks = callbacks;
@@ -15,6 +18,11 @@ void terminal_init(struct terminal *terminal,
 
   terminal->cursor_row = 0;
   terminal->cursor_col = 0;
+
+  terminal->cursor_on_counter = CURSOR_ON_COUNTER;
+  terminal->cursor_off_counter = CURSOR_OFF_COUNTER;
+  terminal->cursor_state = false;
+  terminal->last_cursor_state = false;
 
   terminal->uart_receive_count = RECEIVE_BUFFER_SIZE;
   terminal->callbacks->uart_receive(terminal->receive_buffer,
@@ -181,6 +189,18 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_IGNORE, // KEYPAD_DECIMAL_SEPARATOR_DELETE
 };
 
+void update_cursor(struct terminal *terminal) {
+  terminal->callbacks->screen_draw_cursor(terminal->cursor_row,
+                                          terminal->cursor_col, 0xf);
+}
+
+void clear_cursor(struct terminal *terminal) {
+  if (terminal->last_cursor_state) {
+    terminal->last_cursor_state = false;
+    update_cursor(terminal);
+  }
+}
+
 void transmit_chr(struct terminal *terminal, uint8_t chr) {
   memcpy(terminal->transmit_buffer, &chr, 1);
   terminal->callbacks->uart_transmit(terminal->transmit_buffer, 1);
@@ -188,6 +208,7 @@ void transmit_chr(struct terminal *terminal, uint8_t chr) {
                                              terminal->cursor_col, chr,
                                              FONT_NORMAL, false, 0xf, 0);
 
+  clear_cursor(terminal);
   terminal->cursor_col++;
 
   if (terminal->cursor_col == COLS) {
@@ -256,4 +277,38 @@ void terminal_uart_receive(struct terminal *terminal, uint32_t count) {
   }
 
   terminal->uart_receive_count = count;
+}
+
+void terminal_timer_tick(struct terminal *terminal) {
+  if (terminal->cursor_on_counter != 0) {
+    terminal->cursor_on_counter--;
+    if (!terminal->cursor_state)
+      terminal->cursor_state = true;
+
+    return;
+  }
+
+  if (terminal->cursor_off_counter != 0) {
+    terminal->cursor_off_counter--;
+    if (terminal->cursor_state)
+      terminal->cursor_state = false;
+
+    return;
+  }
+
+  terminal->cursor_on_counter = CURSOR_ON_COUNTER;
+  terminal->cursor_off_counter = CURSOR_OFF_COUNTER;
+}
+
+void terminal_update_cursor(struct terminal *terminal) {
+  if (terminal->cursor_state && !terminal->last_cursor_state) {
+    terminal->last_cursor_state = true;
+    update_cursor(terminal);
+    return;
+  }
+  
+  if (!terminal->cursor_state && terminal->last_cursor_state) {
+    terminal->last_cursor_state = false;
+    update_cursor(terminal);
+  }
 }

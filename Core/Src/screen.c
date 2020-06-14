@@ -28,16 +28,30 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
 
       size_t i = base + COLS * CHAR_WIDTH * char_y + char_x;
 
-      color_t color_t = inactive;
+      color_t color = inactive;
 
       if ((underlined && char_y == CHAR_HEIGHT - 1) ||
           (char_x < FONT_WIDTH &&
            font_data[character * FONT_HEIGHT + char_y] & (1 << char_x))) {
 
-        color_t = active;
+        color = active;
       }
 
-      screen->buffer[i] = color_t;
+      screen->buffer[i] = color;
+    }
+  }
+}
+
+void screen_draw_cursor(struct screen *screen, size_t row, size_t col,
+                        color_t color) {
+  size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
+
+  for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++) {
+    for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
+
+      size_t i = base + COLS * CHAR_WIDTH * char_y + char_x;
+
+      screen->buffer[i] ^= color;
     }
   }
 }

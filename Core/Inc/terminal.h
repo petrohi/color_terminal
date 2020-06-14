@@ -29,6 +29,7 @@ struct terminal_callbacks {
   void (*screen_draw_character)(size_t row, size_t col, uint8_t character,
                                 enum font font, bool underlined, color_t active,
                                 color_t inactive);
+  void (*screen_draw_cursor)(size_t row, size_t col, color_t color);
 };
 
 #define TRANSMIT_BUFFER_SIZE 256
@@ -45,6 +46,11 @@ struct terminal {
   uint8_t cursor_col;
   uint32_t uart_receive_count;
 
+  uint16_t cursor_on_counter;
+  uint16_t cursor_off_counter;
+  bool cursor_state;
+  bool last_cursor_state;
+
   uint8_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
   uint8_t receive_buffer[RECEIVE_BUFFER_SIZE];
 };
@@ -57,5 +63,7 @@ void terminal_handle_alt(struct terminal *terminal, bool alt);
 void terminal_handle_ctrl(struct terminal *terminal, bool ctrl);
 
 void terminal_uart_receive(struct terminal *terminal, uint32_t count);
+void terminal_timer_tick(struct terminal *terminal);
+void terminal_update_cursor(struct terminal *terminal);
 
 #endif

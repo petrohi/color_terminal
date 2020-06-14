@@ -22,6 +22,7 @@
 #include "main.h"
 #include "dma.h"
 #include "ltdc.h"
+#include "tim.h"
 #include "usart.h"
 #include "usb_host.h"
 #include "gpio.h"
@@ -151,6 +152,11 @@ void draw_character(size_t row, size_t col, uint8_t character, enum font font,
                         underlined, active, inactive);
 }
 
+void draw_cursor(size_t row, size_t col, color_t color) {
+
+  screen_draw_cursor(ltdc_get_screen(), row, col, color);
+}
+
 struct terminal terminal;
 
 /* USER CODE END 0 */
@@ -187,6 +193,7 @@ int main(void)
   MX_LTDC_Init();
   MX_USART1_UART_Init();
   MX_USB_HOST_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
   printf("Hello World\n");
@@ -195,8 +202,10 @@ int main(void)
                                          .uart_transmit = uart_transmit,
                                          .uart_receive = uart_receive,
                                          .screen_draw_character =
-                                             draw_character};
+                                             draw_character,
+                                         .screen_draw_cursor = draw_cursor};
   terminal_init(&terminal, &callbacks);
+  start_timer();
 
   screen_test_colors(ltdc_get_screen());
   // screen_test_fonts(ltdc_get_screen());
@@ -226,8 +235,9 @@ int main(void)
 
     //test_mandelbrot();
 
-    MX_USBH_HID_KeyboardHandle(&terminal);
+    keyboard_handle(&terminal);
     terminal_uart_receive(&terminal, uart_receive_count());
+    terminal_update_cursor(&terminal);
   }
   /* USER CODE END 3 */
 }
