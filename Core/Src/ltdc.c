@@ -22,13 +22,13 @@
 
 /* USER CODE BEGIN 0 */
 
-static Pixel screen_buffer[SCREEN_WIDTH * SCREEN_HEIGHT];
+static struct screen screen;
 
-Pixel *GetScreenBuffer(void) { return screen_buffer; }
+struct screen *ltdc_get_screen() { return &screen; }
 
-typedef uint32_t CLUTEntry;
+typedef uint32_t clut_entry;
 
-static const CLUTEntry clutTable[] = {
+static const clut_entry clut_table[] = {
     0x0,      0x800000, 0x008000, 0x808000, 0x000080, 0x800080,
     0x008080, 0xc0c0c0,
 
@@ -121,7 +121,7 @@ void MX_LTDC_Init(void)
   pLayerCfg.Alpha0 = 0;
   pLayerCfg.BlendingFactor1 = LTDC_BLENDING_FACTOR1_CA;
   pLayerCfg.BlendingFactor2 = LTDC_BLENDING_FACTOR2_CA;
-  pLayerCfg.FBStartAdress = (uint32_t)screen_buffer;
+  pLayerCfg.FBStartAdress = (uint32_t)screen.buffer;
   pLayerCfg.ImageWidth = 560;
   pLayerCfg.ImageHeight = 336;
   pLayerCfg.Backcolor.Blue = 0;
@@ -132,8 +132,8 @@ void MX_LTDC_Init(void)
     Error_Handler();
   }
 
-  if (HAL_LTDC_ConfigCLUT(&hltdc, (uint32_t *)clutTable,
-                          sizeof(clutTable) / sizeof(CLUTEntry), 0) != HAL_OK) {
+  if (HAL_LTDC_ConfigCLUT(&hltdc, (uint32_t *)clut_table,
+                          sizeof(clut_table) / sizeof(clut_entry), 0) != HAL_OK) {
     Error_Handler();
   }
 

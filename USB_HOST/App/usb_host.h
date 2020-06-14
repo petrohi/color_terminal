@@ -36,9 +36,10 @@
 #include <stdbool.h>
 
 #include "usbh_hid_keybd.h"
+#include "terminal.h"
 
-HID_KEYBD_Info_TypeDef *MX_USBH_HID_KeyboardDecode();
-void SetLedState(bool caps, bool scroll, bool num);
+void MX_USBH_HID_KeyboardHandle(struct terminal *terminal);
+void keyboard_set_leds(struct lock_state state);
 
 /* USER CODE END INCLUDE */
 

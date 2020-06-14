@@ -1,32 +1,61 @@
+#ifndef __TERMINAL_H__
+#define __TERMINAL_H__
+
 #include <stdbool.h>
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
-typedef struct TerminalCallbacks {
-  void (*keyboard_set_leds)(bool caps, bool scroll, bool num);
-  void (*uart_transmit)(uint8_t *data, uint16_t size);
-} TerminalCallbacks_t;
-
-typedef struct LockState {
+struct lock_state {
   uint8_t caps : 1;
   uint8_t scroll : 1;
   uint8_t num : 1;
-} LockState_t;
+};
+
+enum font {
+  FONT_NORMAL,
+  FONT_BOLD,
+  FONT_ITALIC,
+};
+
+typedef uint8_t color_t;
+
+#define COLS 80
+#define ROWS 24
+
+struct terminal_callbacks {
+  void (*keyboard_set_leds)(struct lock_state state);
+  void (*uart_transmit)(uint8_t *data, uint16_t size);
+  void (*uart_receive)(uint8_t *data, uint16_t size);
+  void (*screen_draw_character)(size_t row, size_t col, uint8_t character,
+                                enum font font, bool underlined, color_t active,
+                                color_t inactive);
+};
 
 #define TRANSMIT_BUFFER_SIZE 256
+#define RECEIVE_BUFFER_SIZE 256
 
-typedef struct Terminal {
-  const TerminalCallbacks_t *callbacks;
+struct terminal {
+  const struct terminal_callbacks *callbacks;
   uint8_t pressed_key_code;
-  LockState_t lock_state;
+  struct lock_state lock_state;
   uint8_t shift_state : 1;
   uint8_t alt_state : 1;
   uint8_t ctrl_state : 1;
-  uint8_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
-} Terminal_t;
+  uint8_t cursor_row;
+  uint8_t cursor_col;
+  uint32_t uart_receive_count;
 
-void Terminal_Init(Terminal_t *terminal, const TerminalCallbacks_t *callbacks);
-void Terminal_HandleKey(Terminal_t *terminal, uint8_t key);
-void Terminal_HandleShift(Terminal_t *terminal, bool shift);
-void Terminal_HandleAlt(Terminal_t *terminal, bool alt);
-void Terminal_HandleCtrl(Terminal_t *terminal, bool ctrl);
+  uint8_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
+  uint8_t receive_buffer[RECEIVE_BUFFER_SIZE];
+};
+
+void terminal_init(struct terminal *terminal,
+                   const struct terminal_callbacks *callbacks);
+void terminal_handle_key(struct terminal *terminal, uint8_t key);
+void terminal_handle_shift(struct terminal *terminal, bool shift);
+void terminal_handle_alt(struct terminal *terminal, bool alt);
+void terminal_handle_ctrl(struct terminal *terminal, bool ctrl);
+
+void terminal_uart_receive(struct terminal *terminal, uint32_t count);
+
+#endif

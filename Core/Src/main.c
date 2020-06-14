@@ -32,7 +32,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "usbh_hid_keybd.h"
 #include "terminal.h"
 
 /* USER CODE END Includes */
@@ -85,7 +84,7 @@ int _write(int file, char *ptr, int len) {
 
 bool cancel_mandelbrot() {
   MX_USB_HOST_Process();
-  HID_KEYBD_Info_TypeDef *info = MX_USBH_HID_KeyboardDecode();
+  HID_KEYBD_Info_TypeDef *info = 0; //MX_USBH_HID_KeyboardDecode();
   return (info && info->keys[0] == KEY_ESCAPE);
 }
 
@@ -97,7 +96,7 @@ void test_mandelbrot() {
 
   static bool render = true;
 
-  HID_KEYBD_Info_TypeDef *info = MX_USBH_HID_KeyboardDecode();
+  HID_KEYBD_Info_TypeDef *info = 0; //MX_USBH_HID_KeyboardDecode();
 
   if (info) {
     switch (info->keys[0]) {
@@ -134,7 +133,7 @@ void test_mandelbrot() {
   }
 
   if (render) {
-    TestMandelbrot(GetScreenBuffer(), window_x, window_y, window_r,
+    screen_test_mandelbrot(ltdc_get_screen(), window_x, window_y, window_r,
                    cancel_mandelbrot);
 
     render = false;
@@ -142,11 +141,17 @@ void test_mandelbrot() {
     size_t size =
         snprintf(buffer, sizeof(buffer), "Rendered x=%e y=%e r=%e\r\n",
                  window_x, window_y, window_r);
-    Transmit((uint8_t *)buffer, size);
+    uart_transmit((uint8_t *)buffer, size);
   }
 }
 
-Terminal_t terminal;
+void draw_character(size_t row, size_t col, uint8_t character, enum font font,
+                    bool underlined, color_t active, color_t inactive) {
+  screen_draw_character(ltdc_get_screen(), row, col, character, font,
+                        underlined, active, inactive);
+}
+
+struct terminal terminal;
 
 /* USER CODE END 0 */
 
@@ -186,14 +191,17 @@ int main(void)
 
   printf("Hello World\n");
 
-  TerminalCallbacks_t callbacks = {.keyboard_set_leds = SetLedState,
-                                   .uart_transmit = Transmit};
-  Terminal_Init(&terminal, &callbacks);
+  struct terminal_callbacks callbacks = {.keyboard_set_leds = keyboard_set_leds,
+                                         .uart_transmit = uart_transmit,
+                                         .uart_receive = uart_receive,
+                                         .screen_draw_character =
+                                             draw_character};
+  terminal_init(&terminal, &callbacks);
 
-  TestColors(GetScreenBuffer());
-  // TestFonts(GetScreenBuffer());
-  // ClearScreen(GetScreenBuffer(), 15);
-  // ClearScreen(GetScreenBuffer(), 0);
+  screen_test_colors(ltdc_get_screen());
+  // screen_test_fonts(ltdc_get_screen());
+  // screen_clear(ltdc_get_screen(), 15);
+  // screen_clear(ltdc_get_screen(), 0);
 
   //Receive((uint8_t *)rx_buffer, sizeof(rx_buffer));
   //int count = 0;
@@ -218,13 +226,8 @@ int main(void)
 
     //test_mandelbrot();
 
-    HID_KEYBD_Info_TypeDef *info = MX_USBH_HID_KeyboardDecode();
-    if (info) {
-      Terminal_HandleShift(&terminal, info->lshift || info->rshift);
-      Terminal_HandleAlt(&terminal, info->lalt || info->ralt);
-      Terminal_HandleCtrl(&terminal, info->lctrl || info->rctrl);
-      Terminal_HandleKey(&terminal, info->keys[0]);
-    }
+    MX_USBH_HID_KeyboardHandle(&terminal);
+    terminal_uart_receive(&terminal, uart_receive_count());
   }
   /* USER CODE END 3 */
 }

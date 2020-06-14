@@ -42,7 +42,7 @@ void MX_LTDC_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
-Pixel* GetScreenBuffer(void);
+struct screen *ltdc_get_screen(void);
 
 /* USER CODE END Prototypes */
 

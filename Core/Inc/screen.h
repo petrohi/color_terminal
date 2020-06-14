@@ -1,15 +1,11 @@
+#ifndef __SCREEN_H__
+#define __SCREEN_H__
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-typedef enum {
-  FONT_NORMAL,
-  FONT_BOLD,
-  FONT_ITALIC,
-} Font;
-
-#define COLS 80
-#define ROWS 24
+#include "terminal.h"
 
 #define CHAR_WIDTH 7
 #define CHAR_HEIGHT 14
@@ -17,17 +13,21 @@ typedef enum {
 #define SCREEN_WIDTH (COLS * CHAR_WIDTH)
 #define SCREEN_HEIGHT (ROWS * CHAR_HEIGHT)
 
-typedef uint8_t Pixel;
+struct screen {
+  color_t buffer[SCREEN_WIDTH * SCREEN_HEIGHT];
+};
 
-void ClearScreen(Pixel *screen_buffer, Pixel inactive);
+void screen_clear(struct screen *screen, color_t inactive);
 
-void DrawCharacter(Pixel *screen_buffer, size_t row, size_t col,
-                   uint8_t character, Font font, bool underlined, Pixel active,
-                   Pixel inactive);
+void screen_draw_character(struct screen *screen, size_t row, size_t col,
+                           uint8_t character, enum font font, bool underlined,
+                           color_t active, color_t inactive);
 
-void TestFonts(Pixel *screen_buffer);
+void screen_test_fonts(struct screen *screen);
 
-void TestMandelbrot(Pixel *screen_buffer, float window_x, float window_y,
-                    float window_r, bool (*cancel)());
+void screen_test_mandelbrot(struct screen *screen, float window_x,
+                            float window_y, float window_r, bool (*cancel)());
 
-void TestColors(Pixel *screen_buffer);
+void screen_test_colors(struct screen *screen);
+
+#endif

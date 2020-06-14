@@ -42,9 +42,9 @@ void MX_USART1_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
-void Transmit(uint8_t *data, uint16_t size);
-void Receive(uint8_t *data, uint16_t size);
-uint32_t ReceiveByteCount();
+void uart_transmit(uint8_t *data, uint16_t size);
+void uart_receive(uint8_t *data, uint16_t size);
+uint32_t uart_receive_count();
 
 /* USER CODE END Prototypes */
 

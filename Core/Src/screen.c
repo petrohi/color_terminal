@@ -4,13 +4,13 @@
 #include <complex.h>
 #include <memory.h>
 
-void ClearScreen(Pixel *screen_buffer, Pixel inactive) {
-  memset(screen_buffer, inactive, SCREEN_WIDTH * SCREEN_HEIGHT);
+void screen_clear(struct screen *screen, color_t inactive) {
+  memset(screen->buffer, inactive, SCREEN_WIDTH * SCREEN_HEIGHT);
 }
 
-void DrawCharacter(Pixel *screen_buffer, size_t row, size_t col,
-                   uint8_t character, Font font, bool underlined, Pixel active,
-                   Pixel inactive) {
+void screen_draw_character(struct screen *screen, size_t row, size_t col,
+                           uint8_t character, enum font font, bool underlined,
+                           color_t active, color_t inactive) {
 
   if (character >= 0x20) {
     character -= 0x1f;
@@ -28,37 +28,38 @@ void DrawCharacter(Pixel *screen_buffer, size_t row, size_t col,
 
       size_t i = base + COLS * CHAR_WIDTH * char_y + char_x;
 
-      Pixel pixel = inactive;
+      color_t color_t = inactive;
 
       if ((underlined && char_y == CHAR_HEIGHT - 1) ||
           (char_x < FONT_WIDTH &&
            font_data[character * FONT_HEIGHT + char_y] & (1 << char_x))) {
 
-        pixel = active;
+        color_t = active;
       }
 
-      screen_buffer[i] = pixel;
+      screen->buffer[i] = color_t;
     }
   }
 }
 
 static const struct {
-  Pixel active;
-  Font font;
+  color_t active;
+  enum font font;
   bool underlined;
 } font_tests[] = {{9, FONT_NORMAL, false},  {10, FONT_BOLD, false},
                   {11, FONT_ITALIC, false}, {12, FONT_NORMAL, true},
                   {13, FONT_BOLD, true},    {14, FONT_ITALIC, true}};
 
-void TestFonts(Pixel *screen_buffer) {
+void screen_test_fonts(struct screen *screen) {
   for (size_t i = 0; i < 6; i++) {
     for (size_t row = 0; row < 8; row++) {
       for (size_t col = 0; col < 16; col++) {
         uint8_t character = ((row * 16) + col);
 
-        DrawCharacter(screen_buffer, row + (8 * (i / 3)), col + (16 * (i % 3)),
-                      character, font_tests[i].font, font_tests[i].underlined,
-                      font_tests[i].active, 0);
+        screen_draw_character(screen, row + (8 * (i / 3)), col + (16 * (i % 3)),
+                              character, font_tests[i].font,
+                              font_tests[i].underlined, font_tests[i].active,
+                              0);
       }
     }
   }
@@ -81,8 +82,8 @@ float mandelbrot(float complex z) {
 
 #define MARGIN_X ((SCREEN_WIDTH - SCREEN_HEIGHT) / 2)
 
-void TestMandelbrot(Pixel *screen_buffer, float window_x, float window_y,
-                    float window_r, bool (*cancel)()) {
+void screen_test_mandelbrot(struct screen *screen, float window_x,
+                            float window_y, float window_r, bool (*cancel)()) {
 
   float x_min = window_x - window_r;
   float y_min = window_y - window_r;
@@ -100,9 +101,9 @@ void TestMandelbrot(Pixel *screen_buffer, float window_x, float window_y,
       float y =
           ((float)screen_y / (float)SCREEN_HEIGHT) * (y_max - y_min) + y_min;
 
-      Pixel pixel = (Pixel)(mandelbrot(x + y * I) * 6.0 * 6.0 * 6.0) + 16;
+      color_t c = (color_t)(mandelbrot(x + y * I) * 6.0 * 6.0 * 6.0) + 16;
 
-      screen_buffer[screen_y * SCREEN_WIDTH + screen_x] = pixel;
+      screen->buffer[screen_y * SCREEN_WIDTH + screen_x] = c;
 
       if (cancel && cancel()) {
         return;
@@ -127,7 +128,7 @@ void TestMandelbrot(Pixel *screen_buffer, float window_x, float window_y,
 
 #define COLOR_TEST_CUBE_OFFSET 10
 
-void TestColors(Pixel *screen_buffer) {
+void screen_test_colors(struct screen *screen) {
   size_t y = 0;
 
   for (size_t i = 0; i < COLOR_TEST_ROW_HEIGHT - COLOR_TEST_ROW_PADDING; ++i) {
@@ -135,7 +136,7 @@ void TestColors(Pixel *screen_buffer) {
     for (size_t j = 0; j < COLOR_TEST_BASE_COLORS; ++j) {
       size_t pos = SCREEN_WIDTH * (y + i) + COLOR_TEST_BASE_COLORS_WIDTH * j;
 
-      memset(screen_buffer + pos, j, COLOR_TEST_BASE_COLORS_WIDTH);
+      memset(screen->buffer + pos, j, COLOR_TEST_BASE_COLORS_WIDTH);
     }
   }
 
@@ -151,7 +152,7 @@ void TestColors(Pixel *screen_buffer) {
         size_t pos = COLOR_TEST_CUBE_OFFSET + SCREEN_WIDTH * (y + i) +
                      COLOR_TEST_CUBE_WIDTH * j;
 
-        memset(screen_buffer + pos,
+        memset(screen->buffer + pos,
                COLOR_TEST_BASE_COLORS +
                    (k * COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE) + j,
                COLOR_TEST_CUBE_WIDTH);
@@ -168,7 +169,7 @@ void TestColors(Pixel *screen_buffer) {
       size_t pos = COLOR_TEST_GRAYSCALE_OFFSET + SCREEN_WIDTH * (y + i) +
                    COLOR_TEST_GRAYSCALE_WIDTH * j;
 
-      memset(screen_buffer + pos,
+      memset(screen->buffer + pos,
              COLOR_TEST_BASE_COLORS +
                  (COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE *
                   COLOR_TEST_CUBE_SIZE) +
