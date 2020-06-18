@@ -81,7 +81,7 @@ void screen_test_fonts(struct screen *screen) {
 
 #define MANDELBROT_ITERATIONS 200
 
-float mandelbrot(float complex z) {
+static float mandelbrot(float complex z) {
   float complex v = 0;
 
   for (size_t n = 0; n < MANDELBROT_ITERATIONS; ++n) {

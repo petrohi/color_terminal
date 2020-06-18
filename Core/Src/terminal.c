@@ -3,14 +3,21 @@
 #include <memory.h>
 #include <stdio.h>
 
-#define CURSOR_ON_COUNTER 1000
-#define CURSOR_OFF_COUNTER 200
+#include "usbh_hid_keybd.h"
+
+#define CURSOR_ON_COUNTER 650
+#define CURSOR_OFF_COUNTER 350
+
+#define FIRST_REPEAT_COUNTER 500
+#define NEXT_REPEAT_COUNTER 33
 
 void terminal_init(struct terminal *terminal,
                    const struct terminal_callbacks *callbacks) {
   terminal->callbacks = callbacks;
 
   terminal->pressed_key_code = 0;
+  terminal->repeat_counter = 0;
+  terminal->repeat_pressed_key = false;
 
   terminal->lock_state.caps = 0;
   terminal->lock_state.scroll = 0;
@@ -19,10 +26,9 @@ void terminal_init(struct terminal *terminal,
   terminal->cursor_row = 0;
   terminal->cursor_col = 0;
 
-  terminal->cursor_on_counter = CURSOR_ON_COUNTER;
-  terminal->cursor_off_counter = CURSOR_OFF_COUNTER;
-  terminal->cursor_state = false;
-  terminal->last_cursor_state = false;
+  terminal->cursor_counter = CURSOR_ON_COUNTER;
+  terminal->cursor_on = true;
+  terminal->cursor_inverted = false;
 
   terminal->uart_receive_count = RECEIVE_BUFFER_SIZE;
   terminal->callbacks->uart_receive(terminal->receive_buffer,
@@ -44,7 +50,7 @@ struct keys_router {
 };
 
 union keys_variant {
-  uint8_t chr;
+  uint8_t character;
   void (*handler)(struct terminal *);
   struct keys_router *router;
 };
@@ -54,15 +60,15 @@ struct keys_entry {
   union keys_variant data;
 };
 
-size_t get_case(struct terminal *terminal) {
+static size_t get_case(struct terminal *terminal) {
   return terminal->lock_state.caps ^ terminal->shift_state;
 }
 
-void update_keyboard_leds(struct terminal *terminal) {
+static void update_keyboard_leds(struct terminal *terminal) {
   terminal->callbacks->keyboard_set_leds(terminal->lock_state);
 }
 
-void handle_caps_lock(struct terminal *terminal) {
+static void handle_caps_lock(struct terminal *terminal) {
   terminal->lock_state.caps ^= 1;
   update_keyboard_leds(terminal);
 }
@@ -71,7 +77,7 @@ void handle_caps_lock(struct terminal *terminal) {
   { IGNORE }
 #define KEY_CHR(c)                                                             \
   {                                                                            \
-    CHR, { .chr = c }                                                          \
+    CHR, { .character = c }                                                    \
   }
 #define KEY_HANDLER(h)                                                         \
   {                                                                            \
@@ -140,11 +146,11 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_IGNORE,                                       // NONUS_NUMBER_SIGN_TILDE
     KEY_IGNORE,                                       // SEMICOLON_COLON
     KEY_IGNORE,                                       // SINGLE_AND_DOUBLE_QUOTE
-    KEY_IGNORE,                                       // GRAVE ACCENT AND TILDE
+    KEY_IGNORE,                                       // GRAVE_ACCENT_AND_TILDE
     KEY_IGNORE,                                       // COMMA_AND_LESS
     KEY_IGNORE,                                       // DOT_GREATER
     KEY_IGNORE,                                       // SLASH_QUESTION
-    KEY_HANDLER(handle_caps_lock),                    // CAPS LOCK
+    KEY_HANDLER(handle_caps_lock),                    // CAPS_LOCK
     KEY_IGNORE,                                       // F1
     KEY_IGNORE,                                       // F2
     KEY_IGNORE,                                       // F3
@@ -158,7 +164,7 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_IGNORE,                                       // F11
     KEY_IGNORE,                                       // F12
     KEY_IGNORE,                                       // PRINTSCREEN
-    KEY_IGNORE,                                       // SCROLL LOCK
+    KEY_IGNORE,                                       // SCROLL_LOCK
     KEY_IGNORE,                                       // PAUSE
     KEY_IGNORE,                                       // INSERT
     KEY_IGNORE,                                       // HOME
@@ -189,25 +195,21 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_IGNORE, // KEYPAD_DECIMAL_SEPARATOR_DELETE
 };
 
-void update_cursor(struct terminal *terminal) {
+static void invert_cursor(struct terminal *terminal) {
   terminal->callbacks->screen_draw_cursor(terminal->cursor_row,
                                           terminal->cursor_col, 0xf);
 }
 
-void clear_cursor(struct terminal *terminal) {
-  if (terminal->last_cursor_state) {
-    terminal->last_cursor_state = false;
-    update_cursor(terminal);
+static void clear_cursor(struct terminal *terminal) {
+  if (terminal->cursor_inverted) {
+    invert_cursor(terminal);
   }
+  terminal->cursor_counter = CURSOR_ON_COUNTER;
+  terminal->cursor_on = true;
+  terminal->cursor_inverted = false;
 }
 
-void transmit_chr(struct terminal *terminal, uint8_t chr) {
-  memcpy(terminal->transmit_buffer, &chr, 1);
-  terminal->callbacks->uart_transmit(terminal->transmit_buffer, 1);
-  terminal->callbacks->screen_draw_character(terminal->cursor_row,
-                                             terminal->cursor_col, chr,
-                                             FONT_NORMAL, false, 0xf, 0);
-
+static void advance_cursor(struct terminal *terminal) {
   clear_cursor(terminal);
   terminal->cursor_col++;
 
@@ -220,14 +222,31 @@ void transmit_chr(struct terminal *terminal, uint8_t chr) {
     terminal->cursor_row = 0;
 }
 
-void handle_key(struct terminal *terminal, const struct keys_entry *key) {
+static void draw_character(struct terminal *terminal, uint8_t character,
+                           enum font font, bool underline, color_t active,
+                           color_t inactive) {
+  clear_cursor(terminal);
+  terminal->callbacks->screen_draw_character(terminal->cursor_row,
+                                             terminal->cursor_col, character,
+                                             font, underline, active, inactive);
+}
+
+static void transmit_character(struct terminal *terminal, uint8_t character) {
+  memcpy(terminal->transmit_buffer, &character, 1);
+  terminal->callbacks->uart_transmit(terminal->transmit_buffer, 1);
+}
+
+static void handle_key(struct terminal *terminal,
+                       const struct keys_entry *key) {
   struct keys_router *router;
 
   switch (key->type) {
   case IGNORE:
     break;
   case CHR:
-    transmit_chr(terminal, key->data.chr);
+    transmit_character(terminal, key->data.character);
+    draw_character(terminal, key->data.character, FONT_NORMAL, false, 0xf, 0);
+    advance_cursor(terminal);
     break;
   case HANDLER:
     key->data.handler(terminal);
@@ -244,6 +263,16 @@ void terminal_handle_key(struct terminal *terminal, uint8_t key_code) {
     return;
 
   terminal->pressed_key_code = key_code;
+  terminal->repeat_pressed_key = false;
+
+  if (key_code != KEY_NONE && key_code != KEY_ESCAPE && key_code != KEY_TAB &&
+      key_code != KEY_RETURN && key_code != KEY_CAPS_LOCK &&
+      key_code != KEY_KEYPAD_NUM_LOCK_AND_CLEAR &&
+      key_code != KEY_SCROLL_LOCK && !terminal->ctrl_state) {
+    terminal->repeat_counter = FIRST_REPEAT_COUNTER;
+  } else {
+    terminal->repeat_counter = 0;
+  }
 
   handle_key(terminal, &entries[key_code]);
 }
@@ -267,9 +296,11 @@ void terminal_uart_receive(struct terminal *terminal, uint32_t count) {
   uint32_t i = terminal->uart_receive_count;
 
   while (i != count) {
-    uint8_t chr = terminal->receive_buffer[RECEIVE_BUFFER_SIZE - i];
+    uint8_t character = terminal->receive_buffer[RECEIVE_BUFFER_SIZE - i];
 
-    transmit_chr(terminal, chr);
+    transmit_character(terminal, character);
+    draw_character(terminal, character, FONT_NORMAL, false, 0xf, 0);
+    advance_cursor(terminal);
     i--;
 
     if (i == 0)
@@ -279,36 +310,49 @@ void terminal_uart_receive(struct terminal *terminal, uint32_t count) {
   terminal->uart_receive_count = count;
 }
 
+static void update_repeat_counter(struct terminal *terminal) {
+  if (terminal->repeat_counter != 0) {
+    terminal->repeat_counter--;
+
+    if (!terminal->repeat_counter && !terminal->repeat_pressed_key)
+      terminal->repeat_pressed_key = true;
+  }
+}
+
+static void update_cursor_counter(struct terminal *terminal) {
+  if (terminal->cursor_counter != 0) {
+    terminal->cursor_counter--;
+
+    return;
+  }
+
+  if (terminal->cursor_on) {
+    terminal->cursor_on = false;
+    terminal->cursor_counter = CURSOR_OFF_COUNTER;
+  }
+  else {
+    terminal->cursor_on = true;
+    terminal->cursor_counter = CURSOR_ON_COUNTER;
+  }
+}
+
 void terminal_timer_tick(struct terminal *terminal) {
-  if (terminal->cursor_on_counter != 0) {
-    terminal->cursor_on_counter--;
-    if (!terminal->cursor_state)
-      terminal->cursor_state = true;
-
-    return;
-  }
-
-  if (terminal->cursor_off_counter != 0) {
-    terminal->cursor_off_counter--;
-    if (terminal->cursor_state)
-      terminal->cursor_state = false;
-
-    return;
-  }
-
-  terminal->cursor_on_counter = CURSOR_ON_COUNTER;
-  terminal->cursor_off_counter = CURSOR_OFF_COUNTER;
+  update_repeat_counter(terminal);
+  update_cursor_counter(terminal);
 }
 
 void terminal_update_cursor(struct terminal *terminal) {
-  if (terminal->cursor_state && !terminal->last_cursor_state) {
-    terminal->last_cursor_state = true;
-    update_cursor(terminal);
-    return;
+  if (terminal->cursor_on != terminal->cursor_inverted) {
+    terminal->cursor_inverted = terminal->cursor_on;
+    invert_cursor(terminal);
   }
-  
-  if (!terminal->cursor_state && terminal->last_cursor_state) {
-    terminal->last_cursor_state = false;
-    update_cursor(terminal);
+}
+
+void terminal_repeat_key(struct terminal *terminal) {
+  if (terminal->repeat_pressed_key) {
+    terminal->repeat_counter = NEXT_REPEAT_COUNTER;
+    terminal->repeat_pressed_key = false;
+
+    handle_key(terminal, &entries[terminal->pressed_key_code]);
   }
 }

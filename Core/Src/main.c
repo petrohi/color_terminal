@@ -83,13 +83,14 @@ int _write(int file, char *ptr, int len) {
   return len;
 }
 
-bool cancel_mandelbrot() {
+/*
+static bool cancel_mandelbrot() {
   MX_USB_HOST_Process();
   HID_KEYBD_Info_TypeDef *info = 0; //MX_USBH_HID_KeyboardDecode();
   return (info && info->keys[0] == KEY_ESCAPE);
 }
 
-void test_mandelbrot() {
+static void test_mandelbrot() {
 
   static float window_x = MANDELBROT_X;
   static float window_y = MANDELBROT_Y;
@@ -145,14 +146,15 @@ void test_mandelbrot() {
     uart_transmit((uint8_t *)buffer, size);
   }
 }
+*/
 
-void draw_character(size_t row, size_t col, uint8_t character, enum font font,
+static void draw_character(size_t row, size_t col, uint8_t character, enum font font,
                     bool underlined, color_t active, color_t inactive) {
   screen_draw_character(ltdc_get_screen(), row, col, character, font,
                         underlined, active, inactive);
 }
 
-void draw_cursor(size_t row, size_t col, color_t color) {
+static void draw_cursor(size_t row, size_t col, color_t color) {
 
   screen_draw_cursor(ltdc_get_screen(), row, col, color);
 }
@@ -238,6 +240,7 @@ int main(void)
     keyboard_handle(&terminal);
     terminal_uart_receive(&terminal, uart_receive_count());
     terminal_update_cursor(&terminal);
+    terminal_repeat_key(&terminal);
   }
   /* USER CODE END 3 */
 }

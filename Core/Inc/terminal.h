@@ -37,7 +37,11 @@ struct terminal_callbacks {
 
 struct terminal {
   const struct terminal_callbacks *callbacks;
+
   uint8_t pressed_key_code;
+  volatile uint16_t repeat_counter;
+  volatile bool repeat_pressed_key;
+
   struct lock_state lock_state;
   uint8_t shift_state : 1;
   uint8_t alt_state : 1;
@@ -46,10 +50,9 @@ struct terminal {
   uint8_t cursor_col;
   uint32_t uart_receive_count;
 
-  uint16_t cursor_on_counter;
-  uint16_t cursor_off_counter;
-  bool cursor_state;
-  bool last_cursor_state;
+  volatile uint16_t cursor_counter;
+  volatile bool cursor_on;
+  bool cursor_inverted;
 
   uint8_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
   uint8_t receive_buffer[RECEIVE_BUFFER_SIZE];
@@ -65,5 +68,6 @@ void terminal_handle_ctrl(struct terminal *terminal, bool ctrl);
 void terminal_uart_receive(struct terminal *terminal, uint32_t count);
 void terminal_timer_tick(struct terminal *terminal);
 void terminal_update_cursor(struct terminal *terminal);
+void terminal_repeat_key(struct terminal *terminal);
 
 #endif
