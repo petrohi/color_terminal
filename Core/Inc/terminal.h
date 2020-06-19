@@ -18,15 +18,18 @@ enum font {
 };
 
 typedef uint8_t color_t;
+typedef uint8_t character_t;
+
+#define CHARACTER_MAX UINT8_MAX
 
 #define COLS 80
 #define ROWS 24
 
 struct terminal_callbacks {
   void (*keyboard_set_leds)(struct lock_state state);
-  void (*uart_transmit)(uint8_t *data, uint16_t size);
-  void (*uart_receive)(uint8_t *data, uint16_t size);
-  void (*screen_draw_character)(size_t row, size_t col, uint8_t character,
+  void (*uart_transmit)(void *data, uint16_t size);
+  void (*uart_receive)(void *data, uint16_t size);
+  void (*screen_draw_character)(size_t row, size_t col, character_t character,
                                 enum font font, bool underlined, color_t active,
                                 color_t inactive);
   void (*screen_draw_cursor)(size_t row, size_t col, color_t color);
@@ -34,6 +37,16 @@ struct terminal_callbacks {
 
 #define TRANSMIT_BUFFER_SIZE 256
 #define RECEIVE_BUFFER_SIZE 256
+
+struct terminal;
+
+#define DEFAULT_RECEIVE CHARACTER_MAX
+
+typedef void (*receive_t)(struct terminal *, character_t);
+typedef receive_t receive_table_t[CHARACTER_MAX + 1];
+
+#define CSI_MAX_PARAMS_COUNT 10
+#define CSI_MAX_PARAM_LENGTH 4
 
 struct terminal {
   const struct terminal_callbacks *callbacks;
@@ -54,8 +67,14 @@ struct terminal {
   volatile bool cursor_on;
   bool cursor_inverted;
 
-  uint8_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
-  uint8_t receive_buffer[RECEIVE_BUFFER_SIZE];
+  const receive_table_t *receive_table;
+
+  character_t csi_params[CSI_MAX_PARAMS_COUNT][CSI_MAX_PARAM_LENGTH];
+  size_t csi_params_count;
+  size_t csi_last_param_length;
+
+  character_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
+  character_t receive_buffer[RECEIVE_BUFFER_SIZE];
 };
 
 void terminal_init(struct terminal *terminal,

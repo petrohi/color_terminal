@@ -60,8 +60,10 @@
 
 /* USER CODE BEGIN PV */
 
+/*
 char rx_buffer[256];
 char buffer[256];
+*/
 
 /* USER CODE END PV */
 
@@ -148,8 +150,9 @@ static void test_mandelbrot() {
 }
 */
 
-static void draw_character(size_t row, size_t col, uint8_t character, enum font font,
-                    bool underlined, color_t active, color_t inactive) {
+static void draw_character(size_t row, size_t col, character_t character,
+                           enum font font, bool underlined, color_t active,
+                           color_t inactive) {
   screen_draw_character(ltdc_get_screen(), row, col, character, font,
                         underlined, active, inactive);
 }

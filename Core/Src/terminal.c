@@ -11,30 +11,6 @@
 #define FIRST_REPEAT_COUNTER 500
 #define NEXT_REPEAT_COUNTER 33
 
-void terminal_init(struct terminal *terminal,
-                   const struct terminal_callbacks *callbacks) {
-  terminal->callbacks = callbacks;
-
-  terminal->pressed_key_code = 0;
-  terminal->repeat_counter = 0;
-  terminal->repeat_pressed_key = false;
-
-  terminal->lock_state.caps = 0;
-  terminal->lock_state.scroll = 0;
-  terminal->lock_state.num = 0;
-
-  terminal->cursor_row = 0;
-  terminal->cursor_col = 0;
-
-  terminal->cursor_counter = CURSOR_ON_COUNTER;
-  terminal->cursor_on = true;
-  terminal->cursor_inverted = false;
-
-  terminal->uart_receive_count = RECEIVE_BUFFER_SIZE;
-  terminal->callbacks->uart_receive(terminal->receive_buffer,
-                                    sizeof(terminal->receive_buffer));
-}
-
 enum keys_entry_type {
   IGNORE,
   CHR,
@@ -50,7 +26,7 @@ struct keys_router {
 };
 
 union keys_variant {
-  uint8_t character;
+  character_t character;
   void (*handler)(struct terminal *);
   struct keys_router *router;
 };
@@ -209,8 +185,22 @@ static void clear_cursor(struct terminal *terminal) {
   terminal->cursor_inverted = false;
 }
 
+static void move_cursor(struct terminal *terminal, uint8_t row, uint8_t col) {
+  clear_cursor(terminal);
+
+  terminal->cursor_col = col;
+  terminal->cursor_row = row;
+
+  if (terminal->cursor_col >= COLS)
+    terminal->cursor_col = COLS - 1;
+
+  if (terminal->cursor_row >= ROWS)
+    terminal->cursor_row = ROWS - 1;
+}
+
 static void advance_cursor(struct terminal *terminal) {
   clear_cursor(terminal);
+
   terminal->cursor_col++;
 
   if (terminal->cursor_col == COLS) {
@@ -222,7 +212,22 @@ static void advance_cursor(struct terminal *terminal) {
     terminal->cursor_row = 0;
 }
 
-static void draw_character(struct terminal *terminal, uint8_t character,
+static void carriage_return(struct terminal *terminal) {
+  clear_cursor(terminal);
+
+  terminal->cursor_col = 0;
+}
+
+static void line_feed(struct terminal *terminal) {
+  clear_cursor(terminal);
+
+  terminal->cursor_row++;
+
+  if (terminal->cursor_row == ROWS)
+    terminal->cursor_row = 0;
+}
+
+static void draw_character(struct terminal *terminal, character_t character,
                            enum font font, bool underline, color_t active,
                            color_t inactive) {
   clear_cursor(terminal);
@@ -231,7 +236,8 @@ static void draw_character(struct terminal *terminal, uint8_t character,
                                              font, underline, active, inactive);
 }
 
-static void transmit_character(struct terminal *terminal, uint8_t character) {
+static void transmit_character(struct terminal *terminal,
+                               character_t character) {
   memcpy(terminal->transmit_buffer, &character, 1);
   terminal->callbacks->uart_transmit(terminal->transmit_buffer, 1);
 }
@@ -289,6 +295,142 @@ void terminal_handle_ctrl(struct terminal *terminal, bool ctrl) {
   terminal->ctrl_state = ctrl;
 }
 
+static void clear_csi_params(struct terminal *terminal) {
+  memset(terminal->csi_params, 0, CSI_MAX_PARAMS_COUNT * CSI_MAX_PARAM_LENGTH);
+  terminal->csi_params_count = 0;
+  terminal->csi_last_param_length = 0;
+}
+
+static uint16_t get_csi_param(struct terminal *terminal, size_t index) {
+  return atoi((const char *)terminal->csi_params[index]);
+}
+
+static const receive_table_t default_receive_table;
+
+static void clear_receive_table(struct terminal *terminal) {
+  terminal->receive_table = &default_receive_table;
+}
+
+static void receive_unexpected(struct terminal *terminal,
+                               character_t character) {
+  clear_receive_table(terminal);
+}
+
+static const receive_table_t esc_receive_table;
+
+static void receive_esc(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &esc_receive_table;
+}
+
+static void receive_cr(struct terminal *terminal, character_t character) {
+  carriage_return(terminal);
+}
+
+static void receive_lf(struct terminal *terminal, character_t character) {
+  line_feed(terminal);
+}
+
+static const receive_table_t csi_receive_table;
+
+static void receive_csi(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &csi_receive_table;
+  clear_csi_params(terminal);
+}
+
+static void receive_csi_param(struct terminal *terminal,
+                              character_t character) {
+  if (!terminal->csi_last_param_length) {
+    if (terminal->csi_params_count == CSI_MAX_PARAMS_COUNT)
+      return;
+
+    terminal->csi_params_count++;
+  }
+
+  // Keep zero for the end of the string for atoi
+  if (terminal->csi_last_param_length == CSI_MAX_PARAM_LENGTH - 1)
+    return;
+
+  terminal->csi_last_param_length++;
+  terminal->csi_params[terminal->csi_params_count - 1]
+                      [terminal->csi_last_param_length - 1] = character;
+}
+
+static void receive_csi_param_delimiter(struct terminal *terminal,
+                                        character_t character) {
+  if (!terminal->csi_last_param_length) {
+    if (terminal->csi_params_count == CSI_MAX_PARAMS_COUNT)
+      return;
+
+    terminal->csi_params_count++;
+    return;
+  }
+
+  terminal->csi_last_param_length = 0;
+}
+
+static void receive_hvp(struct terminal *terminal, character_t character) {
+  uint8_t row = get_csi_param(terminal, 0);
+  uint8_t col = get_csi_param(terminal, 1);
+
+  if (row)
+    row--;
+  if (col)
+    col--;
+
+  move_cursor(terminal, row, col);
+  clear_receive_table(terminal);
+}
+
+static void receive_printable(struct terminal *terminal,
+                              character_t character) {
+  transmit_character(terminal, character);
+  draw_character(terminal, character, FONT_NORMAL, false, 0xf, 0);
+  advance_cursor(terminal);
+}
+
+static void receive_character(struct terminal *terminal,
+                              character_t character) {
+  receive_t receive = (*terminal->receive_table)[character];
+
+  if (!receive) {
+    receive = (*terminal->receive_table)[DEFAULT_RECEIVE];
+  }
+
+  receive(terminal, character);
+}
+
+#define RECEIVE_HANDLER(c, h) [c] = h
+#define DEFAULT_RECEIVE_HANDLER(h) [DEFAULT_RECEIVE] = h
+
+#define DEFAULT_RECEIVE_TABLE(h)                                               \
+  RECEIVE_HANDLER('\15', receive_cr), RECEIVE_HANDLER('\12', receive_lf),      \
+      RECEIVE_HANDLER('\33', receive_esc), DEFAULT_RECEIVE_HANDLER(h)
+
+static const receive_table_t default_receive_table = {
+    DEFAULT_RECEIVE_TABLE(receive_printable),
+};
+
+static const receive_table_t esc_receive_table = {
+    DEFAULT_RECEIVE_TABLE(receive_unexpected),
+    RECEIVE_HANDLER('[', receive_csi),
+};
+
+static const receive_table_t csi_receive_table = {
+    DEFAULT_RECEIVE_TABLE(receive_unexpected),
+    RECEIVE_HANDLER('0', receive_csi_param),
+    RECEIVE_HANDLER('1', receive_csi_param),
+    RECEIVE_HANDLER('2', receive_csi_param),
+    RECEIVE_HANDLER('3', receive_csi_param),
+    RECEIVE_HANDLER('4', receive_csi_param),
+    RECEIVE_HANDLER('5', receive_csi_param),
+    RECEIVE_HANDLER('6', receive_csi_param),
+    RECEIVE_HANDLER('7', receive_csi_param),
+    RECEIVE_HANDLER('8', receive_csi_param),
+    RECEIVE_HANDLER('9', receive_csi_param),
+    RECEIVE_HANDLER(';', receive_csi_param_delimiter),
+    RECEIVE_HANDLER('f', receive_hvp),
+};
+
 void terminal_uart_receive(struct terminal *terminal, uint32_t count) {
   if (terminal->uart_receive_count == count)
     return;
@@ -296,11 +438,8 @@ void terminal_uart_receive(struct terminal *terminal, uint32_t count) {
   uint32_t i = terminal->uart_receive_count;
 
   while (i != count) {
-    uint8_t character = terminal->receive_buffer[RECEIVE_BUFFER_SIZE - i];
-
-    transmit_character(terminal, character);
-    draw_character(terminal, character, FONT_NORMAL, false, 0xf, 0);
-    advance_cursor(terminal);
+    character_t character = terminal->receive_buffer[RECEIVE_BUFFER_SIZE - i];
+    receive_character(terminal, character);
     i--;
 
     if (i == 0)
@@ -329,8 +468,7 @@ static void update_cursor_counter(struct terminal *terminal) {
   if (terminal->cursor_on) {
     terminal->cursor_on = false;
     terminal->cursor_counter = CURSOR_OFF_COUNTER;
-  }
-  else {
+  } else {
     terminal->cursor_on = true;
     terminal->cursor_counter = CURSOR_ON_COUNTER;
   }
@@ -355,4 +493,34 @@ void terminal_repeat_key(struct terminal *terminal) {
 
     handle_key(terminal, &entries[terminal->pressed_key_code]);
   }
+}
+
+void terminal_init(struct terminal *terminal,
+                   const struct terminal_callbacks *callbacks) {
+  terminal->callbacks = callbacks;
+
+  terminal->pressed_key_code = 0;
+  terminal->repeat_counter = 0;
+  terminal->repeat_pressed_key = false;
+
+  terminal->lock_state.caps = 0;
+  terminal->lock_state.scroll = 0;
+  terminal->lock_state.num = 0;
+
+  terminal->cursor_row = 0;
+  terminal->cursor_col = 0;
+
+  terminal->cursor_counter = CURSOR_ON_COUNTER;
+  terminal->cursor_on = true;
+  terminal->cursor_inverted = false;
+
+  terminal->receive_table = &default_receive_table;
+
+  memset(terminal->csi_params, 0, CSI_MAX_PARAMS_COUNT * CSI_MAX_PARAM_LENGTH);
+  terminal->csi_params_count = 0;
+  terminal->csi_last_param_length = 0;
+
+  terminal->uart_receive_count = RECEIVE_BUFFER_SIZE;
+  terminal->callbacks->uart_receive(terminal->receive_buffer,
+                                    sizeof(terminal->receive_buffer));
 }
