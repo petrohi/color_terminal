@@ -17,6 +17,8 @@ enum font {
   FONT_ITALIC,
 };
 
+enum scroll { SCROLL_UP, SCROLL_DOWN };
+
 typedef uint8_t color_t;
 typedef uint8_t character_t;
 
@@ -33,6 +35,9 @@ struct terminal_callbacks {
                                 enum font font, bool underlined, color_t active,
                                 color_t inactive);
   void (*screen_draw_cursor)(size_t row, size_t col, color_t color);
+  void (*screen_clear)(size_t from_row, size_t to_row, color_t inactive);
+  void (*screen_scroll)(enum scroll scroll, size_t from_row, size_t to_row,
+                        size_t rows, color_t inactive);
 };
 
 #define TRANSMIT_BUFFER_SIZE 256
@@ -56,11 +61,20 @@ struct terminal {
   volatile bool repeat_pressed_key;
 
   struct lock_state lock_state;
+
   uint8_t shift_state : 1;
   uint8_t alt_state : 1;
   uint8_t ctrl_state : 1;
+
   uint8_t cursor_row;
   uint8_t cursor_col;
+  bool cursor_last_col;
+
+  enum font font;
+  bool underlined;
+  color_t active_color;
+  color_t inactive_color;
+
   uint32_t uart_receive_count;
 
   volatile uint16_t cursor_counter;

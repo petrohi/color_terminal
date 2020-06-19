@@ -11,6 +11,9 @@
 #define FIRST_REPEAT_COUNTER 500
 #define NEXT_REPEAT_COUNTER 33
 
+#define PRODUCT_VERSION "ASCII Terminal Version 3.0\r\n"
+#define PRODUCT_COPYRIGHT "Copyright (C) 2020 Peter Hizalev\r\n"
+
 enum keys_entry_type {
   IGNORE,
   CHR,
@@ -171,71 +174,6 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_IGNORE, // KEYPAD_DECIMAL_SEPARATOR_DELETE
 };
 
-static void invert_cursor(struct terminal *terminal) {
-  terminal->callbacks->screen_draw_cursor(terminal->cursor_row,
-                                          terminal->cursor_col, 0xf);
-}
-
-static void clear_cursor(struct terminal *terminal) {
-  if (terminal->cursor_inverted) {
-    invert_cursor(terminal);
-  }
-  terminal->cursor_counter = CURSOR_ON_COUNTER;
-  terminal->cursor_on = true;
-  terminal->cursor_inverted = false;
-}
-
-static void move_cursor(struct terminal *terminal, uint8_t row, uint8_t col) {
-  clear_cursor(terminal);
-
-  terminal->cursor_col = col;
-  terminal->cursor_row = row;
-
-  if (terminal->cursor_col >= COLS)
-    terminal->cursor_col = COLS - 1;
-
-  if (terminal->cursor_row >= ROWS)
-    terminal->cursor_row = ROWS - 1;
-}
-
-static void advance_cursor(struct terminal *terminal) {
-  clear_cursor(terminal);
-
-  terminal->cursor_col++;
-
-  if (terminal->cursor_col == COLS) {
-    terminal->cursor_col = 0;
-    terminal->cursor_row++;
-  }
-
-  if (terminal->cursor_row == ROWS)
-    terminal->cursor_row = 0;
-}
-
-static void carriage_return(struct terminal *terminal) {
-  clear_cursor(terminal);
-
-  terminal->cursor_col = 0;
-}
-
-static void line_feed(struct terminal *terminal) {
-  clear_cursor(terminal);
-
-  terminal->cursor_row++;
-
-  if (terminal->cursor_row == ROWS)
-    terminal->cursor_row = 0;
-}
-
-static void draw_character(struct terminal *terminal, character_t character,
-                           enum font font, bool underline, color_t active,
-                           color_t inactive) {
-  clear_cursor(terminal);
-  terminal->callbacks->screen_draw_character(terminal->cursor_row,
-                                             terminal->cursor_col, character,
-                                             font, underline, active, inactive);
-}
-
 static void transmit_character(struct terminal *terminal,
                                character_t character) {
   memcpy(terminal->transmit_buffer, &character, 1);
@@ -251,8 +189,6 @@ static void handle_key(struct terminal *terminal,
     break;
   case CHR:
     transmit_character(terminal, key->data.character);
-    draw_character(terminal, key->data.character, FONT_NORMAL, false, 0xf, 0);
-    advance_cursor(terminal);
     break;
   case HANDLER:
     key->data.handler(terminal);
@@ -293,6 +229,68 @@ void terminal_handle_alt(struct terminal *terminal, bool alt) {
 
 void terminal_handle_ctrl(struct terminal *terminal, bool ctrl) {
   terminal->ctrl_state = ctrl;
+}
+
+static void invert_cursor(struct terminal *terminal) {
+  terminal->callbacks->screen_draw_cursor(terminal->cursor_row,
+                                          terminal->cursor_col, 0xf);
+}
+
+static void clear_cursor(struct terminal *terminal) {
+  if (terminal->cursor_inverted) {
+    invert_cursor(terminal);
+  }
+  terminal->cursor_counter = CURSOR_ON_COUNTER;
+  terminal->cursor_on = true;
+  terminal->cursor_inverted = false;
+}
+
+static void move_cursor(struct terminal *terminal, uint8_t row, uint8_t col) {
+  clear_cursor(terminal);
+
+  terminal->cursor_col = col;
+  terminal->cursor_row = row;
+  terminal->cursor_last_col = false;
+
+  if (terminal->cursor_col >= COLS)
+    terminal->cursor_col = COLS - 1;
+
+  if (terminal->cursor_row >= ROWS)
+    terminal->cursor_row = ROWS - 1;
+}
+
+static void carriage_return(struct terminal *terminal) {
+  clear_cursor(terminal);
+
+  terminal->cursor_col = 0;
+  terminal->cursor_last_col = false;
+}
+
+static void line_feed(struct terminal *terminal) {
+  clear_cursor(terminal);
+
+  if (terminal->cursor_row == ROWS - 1)
+    terminal->callbacks->screen_scroll(SCROLL_DOWN, 0, ROWS, 1, 0);
+  else
+    terminal->cursor_row++;
+}
+
+static void put_character(struct terminal *terminal, character_t character) {
+  clear_cursor(terminal);
+
+  if (terminal->cursor_last_col) {
+    carriage_return(terminal);
+    line_feed(terminal);
+  }
+
+  terminal->callbacks->screen_draw_character(
+      terminal->cursor_row, terminal->cursor_col, character, terminal->font,
+      terminal->underlined, terminal->active_color, terminal->inactive_color);
+
+  if (terminal->cursor_col == COLS - 1)
+    terminal->cursor_last_col = true;
+  else
+    terminal->cursor_col++;
 }
 
 static void clear_csi_params(struct terminal *terminal) {
@@ -383,9 +381,7 @@ static void receive_hvp(struct terminal *terminal, character_t character) {
 
 static void receive_printable(struct terminal *terminal,
                               character_t character) {
-  transmit_character(terminal, character);
-  draw_character(terminal, character, FONT_NORMAL, false, 0xf, 0);
-  advance_cursor(terminal);
+  put_character(terminal, character);
 }
 
 static void receive_character(struct terminal *terminal,
@@ -430,6 +426,13 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER(';', receive_csi_param_delimiter),
     RECEIVE_HANDLER('f', receive_hvp),
 };
+
+static void receive_string(struct terminal *terminal, char *string) {
+  while (*string) {
+    receive_character(terminal, *string);
+    string++;
+  }
+}
 
 void terminal_uart_receive(struct terminal *terminal, uint32_t count) {
   if (terminal->uart_receive_count == count)
@@ -509,6 +512,12 @@ void terminal_init(struct terminal *terminal,
 
   terminal->cursor_row = 0;
   terminal->cursor_col = 0;
+  terminal->cursor_last_col = false;
+
+  terminal->font = FONT_NORMAL;
+  terminal->underlined = false;
+  terminal->active_color = 0xf;
+  terminal->inactive_color = 0;
 
   terminal->cursor_counter = CURSOR_ON_COUNTER;
   terminal->cursor_on = true;
@@ -523,4 +532,7 @@ void terminal_init(struct terminal *terminal,
   terminal->uart_receive_count = RECEIVE_BUFFER_SIZE;
   terminal->callbacks->uart_receive(terminal->receive_buffer,
                                     sizeof(terminal->receive_buffer));
+
+  terminal->callbacks->screen_clear(0, ROWS, 0);
+  receive_string(terminal, PRODUCT_VERSION PRODUCT_COPYRIGHT "\r\n");
 }

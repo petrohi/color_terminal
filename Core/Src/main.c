@@ -150,16 +150,28 @@ static void test_mandelbrot() {
 }
 */
 
-static void draw_character(size_t row, size_t col, character_t character,
-                           enum font font, bool underlined, color_t active,
-                           color_t inactive) {
+static void screen_draw_character_callback(size_t row, size_t col,
+                                           character_t character,
+                                           enum font font, bool underlined,
+                                           color_t active, color_t inactive) {
   screen_draw_character(ltdc_get_screen(), row, col, character, font,
                         underlined, active, inactive);
 }
 
-static void draw_cursor(size_t row, size_t col, color_t color) {
+static void screen_draw_cursor_callback(size_t row, size_t col, color_t color) {
 
   screen_draw_cursor(ltdc_get_screen(), row, col, color);
+}
+
+static void screen_clear_callback(size_t from_row, size_t to_row,
+                                  color_t inactive) {
+  screen_clear(ltdc_get_screen(), from_row, to_row, inactive);
+}
+
+static void screen_scroll_callback(enum scroll scroll, size_t from_row,
+                                   size_t to_row, size_t rows,
+                                   color_t inactive) {
+  screen_scroll(ltdc_get_screen(), scroll, from_row, to_row, rows, inactive);
 }
 
 struct terminal terminal;
@@ -203,16 +215,20 @@ int main(void)
 
   printf("Hello World\n");
 
-  struct terminal_callbacks callbacks = {.keyboard_set_leds = keyboard_set_leds,
-                                         .uart_transmit = uart_transmit,
-                                         .uart_receive = uart_receive,
-                                         .screen_draw_character =
-                                             draw_character,
-                                         .screen_draw_cursor = draw_cursor};
+  struct terminal_callbacks callbacks = {
+      .keyboard_set_leds = keyboard_set_leds,
+      .uart_transmit = uart_transmit,
+      .uart_receive = uart_receive,
+      .screen_draw_character = screen_draw_character_callback,
+      .screen_draw_cursor = screen_draw_cursor_callback,
+      .screen_clear = screen_clear_callback,
+      .screen_scroll = screen_scroll_callback};
   terminal_init(&terminal, &callbacks);
   start_timer();
 
-  screen_test_colors(ltdc_get_screen());
+  // screen_test_colors(ltdc_get_screen());
+  // screen_scroll(ltdc_get_screen(), UP, 2, ROWS - 2, 2, 0);
+  // screen_scroll(ltdc_get_screen(), DOWN, 2, ROWS - 2, 2, 0);
   // screen_test_fonts(ltdc_get_screen());
   // screen_clear(ltdc_get_screen(), 15);
   // screen_clear(ltdc_get_screen(), 0);
@@ -261,7 +277,7 @@ void SystemClock_Config(void)
   /** Configure the main internal regulator output voltage 
   */
   __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
@@ -269,9 +285,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 72;
+  RCC_OscInitStruct.PLL.PLLN = 144;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 3;
+  RCC_OscInitStruct.PLL.PLLQ = 6;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -282,10 +298,10 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV4;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
     Error_Handler();
   }

@@ -4,8 +4,37 @@
 #include <complex.h>
 #include <memory.h>
 
-void screen_clear(struct screen *screen, color_t inactive) {
-  memset(screen->buffer, inactive, SCREEN_WIDTH * SCREEN_HEIGHT);
+void screen_clear(struct screen *screen, size_t from_row, size_t to_row,
+                  color_t inactive) {
+  if (to_row <= from_row)
+    return;
+
+  size_t size = SCREEN_WIDTH * CHAR_HEIGHT * (to_row - from_row);
+  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * from_row;
+
+  memset(screen->buffer + offset, inactive, size);
+}
+
+void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
+                   size_t to_row, size_t rows, color_t inactive) {
+  if (to_row <= from_row + rows)
+    return;
+
+  size_t disp = SCREEN_WIDTH * CHAR_HEIGHT * rows;
+  size_t size = SCREEN_WIDTH * CHAR_HEIGHT * (to_row - from_row - rows);
+  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * from_row;
+
+  if (scroll == SCROLL_UP) {
+    memmove((void *)screen->buffer + offset + disp,
+            (void *)screen->buffer + offset, size);
+
+    screen_clear(screen, from_row, from_row + rows, inactive);
+  } else if (scroll == SCROLL_DOWN) {
+    memcpy((void *)screen->buffer + offset,
+           (void *)screen->buffer + offset + disp, size);
+
+    screen_clear(screen, to_row - rows, to_row, inactive);
+  }
 }
 
 void screen_draw_character(struct screen *screen, size_t row, size_t col,

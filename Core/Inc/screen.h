@@ -17,7 +17,11 @@ struct screen {
   color_t buffer[SCREEN_WIDTH * SCREEN_HEIGHT];
 };
 
-void screen_clear(struct screen *screen, color_t inactive);
+void screen_clear(struct screen *screen, size_t from_row, size_t to_row,
+                  color_t inactive);
+
+void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
+                   size_t to_row, size_t rows, color_t inactive);
 
 void screen_draw_character(struct screen *screen, size_t row, size_t col,
                            uint8_t character, enum font font, bool underlined,
