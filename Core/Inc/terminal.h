@@ -72,6 +72,8 @@ struct terminal {
   uint8_t alt_state : 1;
   uint8_t ctrl_state : 1;
 
+  bool new_line_mode;
+
   int16_t cursor_row;
   int16_t cursor_col;
   bool cursor_last_col;

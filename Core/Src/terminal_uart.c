@@ -102,6 +102,28 @@ static void receive_hvp(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static void receive_sm(struct terminal *terminal, character_t character) {
+  int16_t mode = get_csi_param(terminal, 0);
+
+  switch (mode) {
+  case 20:
+    terminal->new_line_mode = true;
+    break;
+  }
+  clear_receive_table(terminal);
+}
+
+static void receive_rm(struct terminal *terminal, character_t character) {
+  int16_t mode = get_csi_param(terminal, 0);
+
+  switch (mode) {
+  case 20:
+    terminal->new_line_mode = false;
+    break;
+  }
+  clear_receive_table(terminal);
+}
+
 static void receive_dsr(struct terminal *terminal, character_t character) {
   uint16_t code = get_csi_param(terminal, 0);
 
@@ -198,8 +220,11 @@ static void handle_sgr(struct terminal *terminal, size_t *i) {
   case 10:
   case 21:
   case 22:
-  case 23:
     terminal->font = FONT_NORMAL;
+    break;
+
+  case 23:
+    terminal->italic = false;
     break;
 
   case 24:
@@ -211,7 +236,7 @@ static void handle_sgr(struct terminal *terminal, size_t *i) {
     break;
 
   case 27:
-    terminal->negative = true;
+    terminal->negative = false;
     break;
 
   case 28:
@@ -355,7 +380,7 @@ static void receive_ed(struct terminal *terminal, character_t character) {
   case 0:
     if (terminal->cursor_col != COLS - 1)
       terminal_screen_clear_cols(terminal, terminal->cursor_row,
-                                 terminal->cursor_col + 1, COLS);
+                                 terminal->cursor_col, COLS);
 
     if (terminal->cursor_row != ROWS - 1)
       terminal_screen_clear_rows(terminal, terminal->cursor_row + 1, ROWS);
@@ -365,7 +390,7 @@ static void receive_ed(struct terminal *terminal, character_t character) {
   case 1:
     if (terminal->cursor_col)
       terminal_screen_clear_cols(terminal, terminal->cursor_row, 0,
-                                 terminal->cursor_col);
+                                 terminal->cursor_col + 1);
 
     if (terminal->cursor_row)
       terminal_screen_clear_rows(terminal, 0, terminal->cursor_row);
@@ -389,13 +414,13 @@ static void receive_el(struct terminal *terminal, character_t character) {
   case 0:
     if (terminal->cursor_col != COLS - 1)
       terminal_screen_clear_cols(terminal, terminal->cursor_row,
-                                 terminal->cursor_col + 1, COLS);
+                                 terminal->cursor_col, COLS);
     break;
 
   case 1:
     if (terminal->cursor_col)
       terminal_screen_clear_cols(terminal, terminal->cursor_row, 0,
-                                 terminal->cursor_col);
+                                 terminal->cursor_col + 1);
 
     break;
 
@@ -424,6 +449,8 @@ static void receive_printable(struct terminal *terminal,
   terminal_screen_put_character(terminal, character);
 }
 
+static void receive_ignore(struct terminal *terminal, character_t character) {}
+
 static void receive_character(struct terminal *terminal,
                               character_t character) {
   receive_t receive = (*terminal->receive_table)[character];
@@ -439,8 +466,39 @@ static void receive_character(struct terminal *terminal,
 #define DEFAULT_RECEIVE_HANDLER(h) [DEFAULT_RECEIVE] = h
 
 #define DEFAULT_RECEIVE_TABLE(h)                                               \
-  RECEIVE_HANDLER('\15', receive_cr), RECEIVE_HANDLER('\12', receive_lf),      \
-      RECEIVE_HANDLER('\33', receive_esc), DEFAULT_RECEIVE_HANDLER(h)
+  RECEIVE_HANDLER('\x00', receive_ignore),                                     \
+      RECEIVE_HANDLER('\x01', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x02', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x03', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x04', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x05', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x06', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x07', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x08', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x09', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x0a', receive_lf),                                     \
+      RECEIVE_HANDLER('\x0b', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x0c', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x0d', receive_cr),                                     \
+      RECEIVE_HANDLER('\x0e', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x0f', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x10', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x11', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x12', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x13', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x14', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x15', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x16', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x17', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x18', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x19', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x1a', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x1b', receive_esc),                                    \
+      RECEIVE_HANDLER('\x1c', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x1d', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x1e', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x1f', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x7f', receive_ignore), DEFAULT_RECEIVE_HANDLER(h)
 
 static const receive_table_t default_receive_table = {
     DEFAULT_RECEIVE_TABLE(receive_printable),
@@ -468,8 +526,10 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER(';', receive_csi_param_delimiter),
     RECEIVE_HANDLER('c', receive_da),
     RECEIVE_HANDLER('f', receive_hvp),
-    RECEIVE_HANDLER('n', receive_dsr),
+    RECEIVE_HANDLER('h', receive_sm),
+    RECEIVE_HANDLER('l', receive_rm),
     RECEIVE_HANDLER('m', receive_sgr),
+    RECEIVE_HANDLER('n', receive_dsr),
     RECEIVE_HANDLER('y', receive_dectst),
     RECEIVE_HANDLER('A', receive_cuu),
     RECEIVE_HANDLER('B', receive_cud),
