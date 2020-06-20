@@ -2,6 +2,7 @@
 
 #include <memory.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 #include "usbh_hid_keybd.h"
 
@@ -182,6 +183,25 @@ static void transmit_character(struct terminal *terminal,
   terminal->callbacks->uart_transmit(terminal->transmit_buffer, 1);
 }
 
+static void transmit_string(struct terminal *terminal, char *string) {
+  size_t len = strlen(string);
+  memcpy(terminal->transmit_buffer, string, len);
+  terminal->callbacks->uart_transmit(terminal->transmit_buffer, len);
+}
+
+#define PRINTF_BUFFER_SIZE 64
+
+static int transmit_printf(struct terminal *terminal, const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+
+  char buffer[PRINTF_BUFFER_SIZE];
+  int len = snprintf(buffer, PRINTF_BUFFER_SIZE, format, args);
+
+  va_end(args);
+  return len;
+}
+
 static void handle_key(struct terminal *terminal,
                        const struct keys_entry *key) {
   struct keys_router *router;
@@ -247,12 +267,18 @@ static void clear_cursor(struct terminal *terminal) {
   terminal->cursor_inverted = false;
 }
 
-static void move_cursor(struct terminal *terminal, uint8_t row, uint8_t col) {
+static void move_cursor(struct terminal *terminal, int16_t row, int16_t col) {
   clear_cursor(terminal);
 
   terminal->cursor_col = col;
   terminal->cursor_row = row;
   terminal->cursor_last_col = false;
+
+  if (terminal->cursor_col < 0)
+    terminal->cursor_col = 0;
+
+  if (terminal->cursor_row < 0)
+    terminal->cursor_row = 0;
 
   if (terminal->cursor_col >= COLS)
     terminal->cursor_col = COLS - 1;
@@ -268,13 +294,45 @@ static void carriage_return(struct terminal *terminal) {
   terminal->cursor_last_col = false;
 }
 
-static void line_feed(struct terminal *terminal) {
+static void scroll(struct terminal *terminal, enum scroll scroll,
+                   size_t from_row, size_t to_row, size_t rows) {
+  clear_cursor(terminal);
+  terminal->callbacks->screen_scroll(scroll, from_row, to_row, rows,
+                                     DEFAULT_INACTIVE_COLOR);
+}
+
+static void clear_rows(struct terminal *terminal, size_t from_row,
+                       size_t to_row) {
+  clear_cursor(terminal);
+  terminal->callbacks->screen_clear_rows(from_row, to_row,
+                                         DEFAULT_INACTIVE_COLOR);
+}
+
+static void clear_cols(struct terminal *terminal, size_t row, size_t from_col,
+                       size_t to_col) {
+  clear_cursor(terminal);
+  terminal->callbacks->screen_clear_cols(row, from_col, to_col,
+                                         DEFAULT_INACTIVE_COLOR);
+}
+
+static void line_feed(struct terminal *terminal, int16_t rows) {
+
+  if (terminal->cursor_row >= ROWS - rows) {
+    scroll(terminal, SCROLL_UP, 0, ROWS,
+           rows - (ROWS - 1 - terminal->cursor_row));
+    terminal->cursor_row = ROWS - 1;
+  } else
+    terminal->cursor_row += rows;
+}
+
+static void reverse_line_feed(struct terminal *terminal, int16_t rows) {
   clear_cursor(terminal);
 
-  if (terminal->cursor_row == ROWS - 1)
-    terminal->callbacks->screen_scroll(SCROLL_DOWN, 0, ROWS, 1, 0);
-  else
-    terminal->cursor_row++;
+  if (terminal->cursor_row < rows) {
+    scroll(terminal, SCROLL_DOWN, 0, ROWS, rows - terminal->cursor_row);
+    terminal->cursor_row = 0;
+  } else
+    terminal->cursor_row -= rows;
 }
 
 static void put_character(struct terminal *terminal, character_t character) {
@@ -282,14 +340,19 @@ static void put_character(struct terminal *terminal, character_t character) {
 
   if (terminal->cursor_last_col) {
     carriage_return(terminal);
-    line_feed(terminal);
+    line_feed(terminal, 1);
   }
+
+  color_t active =
+      terminal->negative ? terminal->inactive_color : terminal->active_color;
+  color_t inactive =
+      terminal->negative ? terminal->active_color : terminal->inactive_color;
 
   if (!terminal->concealed)
     terminal->callbacks->screen_draw_character(
         terminal->cursor_row, terminal->cursor_col, character, terminal->font,
-        terminal->italic, terminal->underlined, terminal->crossedout,
-        terminal->active_color, terminal->inactive_color);
+        terminal->italic, terminal->underlined, terminal->crossedout, active,
+        inactive);
 
   if (terminal->cursor_col == COLS - 1)
     terminal->cursor_last_col = true;
@@ -329,7 +392,7 @@ static void receive_cr(struct terminal *terminal, character_t character) {
 }
 
 static void receive_lf(struct terminal *terminal, character_t character) {
-  line_feed(terminal);
+  line_feed(terminal, 1);
 }
 
 static const receive_table_t csi_receive_table;
@@ -337,6 +400,16 @@ static const receive_table_t csi_receive_table;
 static void receive_csi(struct terminal *terminal, character_t character) {
   terminal->receive_table = &csi_receive_table;
   clear_csi_params(terminal);
+}
+
+static const receive_table_t hash_receive_table;
+
+static void receive_hash(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &hash_receive_table;
+}
+
+static void receive_ris(struct terminal *terminal, character_t character) {
+  HAL_NVIC_SystemReset();
 }
 
 static void receive_csi_param(struct terminal *terminal,
@@ -370,16 +443,45 @@ static void receive_csi_param_delimiter(struct terminal *terminal,
   terminal->csi_last_param_length = 0;
 }
 
+static void receive_da(struct terminal *terminal, character_t character) {
+  transmit_string(terminal, "\33[?1;0c");
+  clear_receive_table(terminal);
+}
+
 static void receive_hvp(struct terminal *terminal, character_t character) {
-  uint8_t row = get_csi_param(terminal, 0);
-  uint8_t col = get_csi_param(terminal, 1);
+  int16_t row = get_csi_param(terminal, 0);
+  int16_t col = get_csi_param(terminal, 1);
 
-  if (row)
-    row--;
-  if (col)
-    col--;
+  move_cursor(terminal, row - 1, col - 1);
+  clear_receive_table(terminal);
+}
 
-  move_cursor(terminal, row, col);
+static void receive_dsr(struct terminal *terminal, character_t character) {
+  uint16_t code = get_csi_param(terminal, 0);
+
+  switch (code) {
+  case 5:
+    transmit_string(terminal, "\33[0n");
+    break;
+
+  case 6:
+    transmit_printf(terminal, "\33[%d;%dR", terminal->cursor_row + 1,
+                    terminal->cursor_col + 1);
+    break;
+  }
+
+  clear_receive_table(terminal);
+}
+
+static void receive_dectst(struct terminal *terminal, character_t character) {
+  clear_receive_table(terminal);
+}
+
+static void receive_cup(struct terminal *terminal, character_t character) {
+  int16_t row = get_csi_param(terminal, 0);
+  int16_t col = get_csi_param(terminal, 1);
+
+  move_cursor(terminal, row - 1, col - 1);
   clear_receive_table(terminal);
 }
 
@@ -514,6 +616,156 @@ static void receive_sgr(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static void receive_cuu(struct terminal *terminal, character_t character) {
+  int16_t rows = get_csi_param(terminal, 0);
+  if (!rows)
+    rows = 1;
+
+  move_cursor(terminal, terminal->cursor_row - rows, terminal->cursor_col);
+  clear_receive_table(terminal);
+}
+
+static void receive_cud(struct terminal *terminal, character_t character) {
+  int16_t rows = get_csi_param(terminal, 0);
+  if (!rows)
+    rows = 1;
+
+  move_cursor(terminal, terminal->cursor_row + rows, terminal->cursor_col);
+  clear_receive_table(terminal);
+}
+
+static void receive_cuf(struct terminal *terminal, character_t character) {
+  int16_t cols = get_csi_param(terminal, 0);
+  if (!cols)
+    cols = 1;
+
+  move_cursor(terminal, terminal->cursor_row, terminal->cursor_col + cols);
+  clear_receive_table(terminal);
+}
+
+static void receive_cub(struct terminal *terminal, character_t character) {
+  int16_t cols = get_csi_param(terminal, 0);
+  if (!cols)
+    cols = 1;
+
+  move_cursor(terminal, terminal->cursor_row, terminal->cursor_col - cols);
+  clear_receive_table(terminal);
+}
+
+static void receive_cnl(struct terminal *terminal, character_t character) {
+  int16_t rows = get_csi_param(terminal, 0);
+  if (!rows)
+    rows = 1;
+
+  carriage_return(terminal);
+  line_feed(terminal, rows);
+  clear_receive_table(terminal);
+}
+
+static void receive_cpl(struct terminal *terminal, character_t character) {
+  int16_t rows = get_csi_param(terminal, 0);
+  if (!rows)
+    rows = 1;
+
+  carriage_return(terminal);
+  reverse_line_feed(terminal, rows);
+  clear_receive_table(terminal);
+}
+
+static void receive_cha(struct terminal *terminal, character_t character) {
+  int16_t col = get_csi_param(terminal, 0);
+
+  move_cursor(terminal, terminal->cursor_row, col - 1);
+  clear_receive_table(terminal);
+}
+
+static void receive_sd(struct terminal *terminal, character_t character) {
+  int16_t rows = get_csi_param(terminal, 0);
+  if (!rows)
+    rows = 1;
+
+  scroll(terminal, SCROLL_DOWN, 0, ROWS, rows);
+  clear_receive_table(terminal);
+}
+
+static void receive_su(struct terminal *terminal, character_t character) {
+  int16_t rows = get_csi_param(terminal, 0);
+  if (!rows)
+    rows = 1;
+
+  scroll(terminal, SCROLL_UP, 0, ROWS, rows);
+  clear_receive_table(terminal);
+}
+
+static void receive_ed(struct terminal *terminal, character_t character) {
+  uint16_t code = get_csi_param(terminal, 0);
+
+  switch (code) {
+  case 0:
+    if (terminal->cursor_col != COLS - 1)
+      clear_cols(terminal, terminal->cursor_row, terminal->cursor_col + 1,
+                 COLS);
+
+    if (terminal->cursor_row != ROWS - 1)
+      clear_rows(terminal, terminal->cursor_row + 1, ROWS);
+
+    break;
+
+  case 1:
+    if (terminal->cursor_col)
+      clear_cols(terminal, terminal->cursor_row, 0, terminal->cursor_col);
+
+    if (terminal->cursor_row)
+      clear_rows(terminal, 0, terminal->cursor_row);
+
+    break;
+
+  case 2:
+  case 3:
+    clear_rows(terminal, 0, ROWS);
+
+    break;
+  }
+
+  clear_receive_table(terminal);
+}
+
+static void receive_el(struct terminal *terminal, character_t character) {
+  uint16_t code = get_csi_param(terminal, 0);
+
+  switch (code) {
+  case 0:
+    if (terminal->cursor_col != COLS - 1)
+      clear_cols(terminal, terminal->cursor_row, terminal->cursor_col + 1,
+                 COLS);
+    break;
+
+  case 1:
+    if (terminal->cursor_col)
+      clear_cols(terminal, terminal->cursor_row, 0, terminal->cursor_col);
+
+    break;
+
+  case 2:
+    clear_cols(terminal, terminal->cursor_row, 0, COLS);
+
+    break;
+  }
+
+  clear_receive_table(terminal);
+}
+
+static void receive_decaln(struct terminal *terminal, character_t character) {
+  for (size_t row = 0; row < ROWS; ++row)
+    for (size_t col = 0; col < COLS; ++col) {
+      move_cursor(terminal, row, col);
+      put_character(terminal, 'E');
+    }
+
+  move_cursor(terminal, 0, 0);
+  clear_receive_table(terminal);
+}
+
 static void receive_printable(struct terminal *terminal,
                               character_t character) {
   put_character(terminal, character);
@@ -544,6 +796,8 @@ static const receive_table_t default_receive_table = {
 static const receive_table_t esc_receive_table = {
     DEFAULT_RECEIVE_TABLE(receive_unexpected),
     RECEIVE_HANDLER('[', receive_csi),
+    RECEIVE_HANDLER('#', receive_hash),
+    RECEIVE_HANDLER('c', receive_ris),
 };
 
 static const receive_table_t csi_receive_table = {
@@ -559,8 +813,28 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER('8', receive_csi_param),
     RECEIVE_HANDLER('9', receive_csi_param),
     RECEIVE_HANDLER(';', receive_csi_param_delimiter),
+    RECEIVE_HANDLER('c', receive_da),
     RECEIVE_HANDLER('f', receive_hvp),
+    RECEIVE_HANDLER('n', receive_dsr),
     RECEIVE_HANDLER('m', receive_sgr),
+    RECEIVE_HANDLER('y', receive_dectst),
+    RECEIVE_HANDLER('A', receive_cuu),
+    RECEIVE_HANDLER('B', receive_cud),
+    RECEIVE_HANDLER('C', receive_cuf),
+    RECEIVE_HANDLER('D', receive_cub),
+    RECEIVE_HANDLER('E', receive_cnl),
+    RECEIVE_HANDLER('F', receive_cpl),
+    RECEIVE_HANDLER('G', receive_cha),
+    RECEIVE_HANDLER('H', receive_cup),
+    RECEIVE_HANDLER('J', receive_ed),
+    RECEIVE_HANDLER('K', receive_el),
+    RECEIVE_HANDLER('S', receive_su),
+    RECEIVE_HANDLER('T', receive_sd),
+};
+
+static const receive_table_t hash_receive_table = {
+    DEFAULT_RECEIVE_TABLE(receive_unexpected),
+    RECEIVE_HANDLER('8', receive_decaln),
 };
 
 static void receive_string(struct terminal *terminal, char *string) {
@@ -674,6 +948,6 @@ void terminal_init(struct terminal *terminal,
   terminal->callbacks->uart_receive(terminal->receive_buffer,
                                     sizeof(terminal->receive_buffer));
 
-  terminal->callbacks->screen_clear(0, ROWS, 0);
+  clear_rows(terminal, 0, ROWS);
   receive_string(terminal, PRODUCT_NAME PRODUCT_VERSION PRODUCT_COPYRIGHT "\r\n");
 }

@@ -164,9 +164,14 @@ static void screen_draw_cursor_callback(size_t row, size_t col, color_t color) {
   screen_draw_cursor(ltdc_get_screen(), row, col, color);
 }
 
-static void screen_clear_callback(size_t from_row, size_t to_row,
-                                  color_t inactive) {
-  screen_clear(ltdc_get_screen(), from_row, to_row, inactive);
+static void screen_clear_rows_callback(size_t from_row, size_t to_row,
+                                       color_t inactive) {
+  screen_clear_rows(ltdc_get_screen(), from_row, to_row, inactive);
+}
+
+static void screen_clear_cols_callback(size_t row, size_t from_col,
+                                       size_t to_col, color_t inactive) {
+  screen_clear_cols(ltdc_get_screen(), row, from_col, to_col, inactive);
 }
 
 static void screen_scroll_callback(enum scroll scroll, size_t from_row,
@@ -222,7 +227,8 @@ int main(void)
       .uart_receive = uart_receive,
       .screen_draw_character = screen_draw_character_callback,
       .screen_draw_cursor = screen_draw_cursor_callback,
-      .screen_clear = screen_clear_callback,
+      .screen_clear_rows = screen_clear_rows_callback,
+      .screen_clear_cols = screen_clear_cols_callback,
       .screen_scroll = screen_scroll_callback};
   terminal_init(&terminal, &callbacks);
   start_timer();

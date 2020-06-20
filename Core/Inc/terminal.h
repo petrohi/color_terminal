@@ -38,7 +38,9 @@ struct terminal_callbacks {
                                 bool crossedout, color_t active,
                                 color_t inactive);
   void (*screen_draw_cursor)(size_t row, size_t col, color_t color);
-  void (*screen_clear)(size_t from_row, size_t to_row, color_t inactive);
+  void (*screen_clear_rows)(size_t from_row, size_t to_row, color_t inactive);
+  void (*screen_clear_cols)(size_t row, size_t from_col, size_t to_col,
+                            color_t inactive);
   void (*screen_scroll)(enum scroll scroll, size_t from_row, size_t to_row,
                         size_t rows, color_t inactive);
 };
@@ -69,8 +71,8 @@ struct terminal {
   uint8_t alt_state : 1;
   uint8_t ctrl_state : 1;
 
-  uint8_t cursor_row;
-  uint8_t cursor_col;
+  int16_t cursor_row;
+  int16_t cursor_col;
   bool cursor_last_col;
 
   enum font font;

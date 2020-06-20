@@ -4,7 +4,7 @@
 #include <complex.h>
 #include <memory.h>
 
-void screen_clear(struct screen *screen, size_t from_row, size_t to_row,
+void screen_clear_rows(struct screen *screen, size_t from_row, size_t to_row,
                   color_t inactive) {
   if (to_row <= from_row)
     return;
@@ -13,6 +13,18 @@ void screen_clear(struct screen *screen, size_t from_row, size_t to_row,
   size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * from_row;
 
   memset(screen->buffer + offset, inactive, size);
+}
+
+void screen_clear_cols(struct screen *screen, size_t row, size_t from_col,
+                       size_t to_col, color_t inactive) {
+  if (to_col <= from_col)
+    return;
+
+  size_t size = CHAR_WIDTH * (to_col - from_col);
+  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * from_col;
+
+  for (size_t i = 0; i < CHAR_HEIGHT; ++i)
+    memset(screen->buffer + offset + (SCREEN_WIDTH * i), inactive, size);
 }
 
 void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
@@ -24,16 +36,16 @@ void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
   size_t size = SCREEN_WIDTH * CHAR_HEIGHT * (to_row - from_row - rows);
   size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * from_row;
 
-  if (scroll == SCROLL_UP) {
+  if (scroll == SCROLL_DOWN) {
     memmove((void *)screen->buffer + offset + disp,
             (void *)screen->buffer + offset, size);
 
-    screen_clear(screen, from_row, from_row + rows, inactive);
-  } else if (scroll == SCROLL_DOWN) {
+    screen_clear_rows(screen, from_row, from_row + rows, inactive);
+  } else if (scroll == SCROLL_UP) {
     memcpy((void *)screen->buffer + offset,
            (void *)screen->buffer + offset + disp, size);
 
-    screen_clear(screen, to_row - rows, to_row, inactive);
+    screen_clear_rows(screen, to_row - rows, to_row, inactive);
   }
 }
 
