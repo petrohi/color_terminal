@@ -152,10 +152,11 @@ static void test_mandelbrot() {
 
 static void screen_draw_character_callback(size_t row, size_t col,
                                            character_t character,
-                                           enum font font, bool underlined,
+                                           enum font font, bool italic,
+                                           bool underlined, bool crossedout,
                                            color_t active, color_t inactive) {
-  screen_draw_character(ltdc_get_screen(), row, col, character, font,
-                        underlined, active, inactive);
+  screen_draw_character(ltdc_get_screen(), row, col, character, font, italic,
+                        underlined, crossedout, active, inactive);
 }
 
 static void screen_draw_cursor_callback(size_t row, size_t col, color_t color) {

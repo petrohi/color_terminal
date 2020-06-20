@@ -11,7 +11,9 @@
 #define FIRST_REPEAT_COUNTER 500
 #define NEXT_REPEAT_COUNTER 33
 
-#define PRODUCT_VERSION "ASCII Terminal Version 3.0\r\n"
+#define PRODUCT_NAME                                                           \
+  "\33[1;91mA\33[92mS\33[93mC\33[94mI\33[95mI\33[39m Terminal\33[m\r\n"
+#define PRODUCT_VERSION "Version 3.0-alpha\r\n"
 #define PRODUCT_COPYRIGHT "Copyright (C) 2020 Peter Hizalev\r\n"
 
 enum keys_entry_type {
@@ -283,9 +285,11 @@ static void put_character(struct terminal *terminal, character_t character) {
     line_feed(terminal);
   }
 
-  terminal->callbacks->screen_draw_character(
-      terminal->cursor_row, terminal->cursor_col, character, terminal->font,
-      terminal->underlined, terminal->active_color, terminal->inactive_color);
+  if (!terminal->concealed)
+    terminal->callbacks->screen_draw_character(
+        terminal->cursor_row, terminal->cursor_col, character, terminal->font,
+        terminal->italic, terminal->underlined, terminal->crossedout,
+        terminal->active_color, terminal->inactive_color);
 
   if (terminal->cursor_col == COLS - 1)
     terminal->cursor_last_col = true;
@@ -379,6 +383,137 @@ static void receive_hvp(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static color_t get_sgr_color(struct terminal *terminal, size_t *i) {
+  uint16_t code = get_csi_param(terminal, (*i)++);
+
+  if (code == 5) {
+    return get_csi_param(terminal, (*i)++);
+  } else if (code == 2) {
+    (*i) += 3;
+  }
+  return DEFAULT_ACTIVE_COLOR;
+}
+
+static void handle_sgr(struct terminal *terminal, size_t *i) {
+  uint16_t code = get_csi_param(terminal, (*i)++);
+
+  switch (code) {
+  case 0:
+    terminal->font = FONT_NORMAL;
+    terminal->italic = false;
+    terminal->underlined = false;
+    terminal->blink = NO_BLINK;
+    terminal->negative = false;
+    terminal->concealed = false;
+    terminal->crossedout = false;
+    terminal->active_color = DEFAULT_ACTIVE_COLOR;
+    terminal->inactive_color = DEFAULT_INACTIVE_COLOR;
+    break;
+
+  case 1:
+    terminal->font = FONT_BOLD;
+    break;
+
+  case 2:
+    terminal->font = FONT_THIN;
+    break;
+
+  case 3:
+    terminal->italic = true;
+    break;
+
+  case 4:
+    terminal->underlined = true;
+    break;
+
+  case 5:
+    terminal->blink = SLOW_BLINK;
+    break;
+
+  case 6:
+    terminal->blink = RAPID_BLINK;
+    break;
+
+  case 7:
+    terminal->negative = true;
+    break;
+
+  case 8:
+    terminal->concealed = true;
+    break;
+
+  case 9:
+    terminal->crossedout = true;
+    break;
+
+  case 10:
+  case 21:
+  case 22:
+  case 23:
+    terminal->font = FONT_NORMAL;
+    break;
+
+  case 24:
+    terminal->underlined = false;
+    break;
+
+  case 25:
+    terminal->blink = NO_BLINK;
+    break;
+
+  case 27:
+    terminal->negative = true;
+    break;
+
+  case 28:
+    terminal->concealed = false;
+    break;
+
+  case 29:
+    terminal->crossedout = false;
+    break;
+
+  case 38:
+    terminal->active_color = get_sgr_color(terminal, i);
+    break;
+
+  case 39:
+    terminal->active_color = DEFAULT_ACTIVE_COLOR;
+    break;
+
+  case 48:
+    terminal->inactive_color = get_sgr_color(terminal, i);
+    break;
+
+  case 49:
+    terminal->inactive_color = DEFAULT_INACTIVE_COLOR;
+    break;
+  }
+
+  if (code >= 30 && code < 38)
+    terminal->active_color = code - 30;
+
+  if (code >= 40 && code < 48)
+    terminal->inactive_color = code - 40;
+
+  if (code >= 90 && code < 98)
+    terminal->active_color = code - 90 + 8;
+
+  if (code >= 100 && code < 108)
+    terminal->inactive_color = code - 100 + 8;
+}
+
+static void receive_sgr(struct terminal *terminal, character_t character) {
+  size_t i = 0;
+  if (terminal->csi_params_count) {
+    while (i < terminal->csi_params_count)
+      handle_sgr(terminal, &i);
+  } else
+    handle_sgr(terminal, &i);
+
+  clear_receive_table(terminal);
+}
+
 static void receive_printable(struct terminal *terminal,
                               character_t character) {
   put_character(terminal, character);
@@ -425,6 +560,7 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER('9', receive_csi_param),
     RECEIVE_HANDLER(';', receive_csi_param_delimiter),
     RECEIVE_HANDLER('f', receive_hvp),
+    RECEIVE_HANDLER('m', receive_sgr),
 };
 
 static void receive_string(struct terminal *terminal, char *string) {
@@ -453,7 +589,7 @@ void terminal_uart_receive(struct terminal *terminal, uint32_t count) {
 }
 
 static void update_repeat_counter(struct terminal *terminal) {
-  if (terminal->repeat_counter != 0) {
+  if (terminal->repeat_counter) {
     terminal->repeat_counter--;
 
     if (!terminal->repeat_counter && !terminal->repeat_pressed_key)
@@ -462,18 +598,18 @@ static void update_repeat_counter(struct terminal *terminal) {
 }
 
 static void update_cursor_counter(struct terminal *terminal) {
-  if (terminal->cursor_counter != 0) {
+  if (terminal->cursor_counter) {
     terminal->cursor_counter--;
 
-    return;
-  }
-
-  if (terminal->cursor_on) {
-    terminal->cursor_on = false;
-    terminal->cursor_counter = CURSOR_OFF_COUNTER;
-  } else {
-    terminal->cursor_on = true;
-    terminal->cursor_counter = CURSOR_ON_COUNTER;
+    if (!terminal->cursor_counter) {
+      if (terminal->cursor_on) {
+        terminal->cursor_on = false;
+        terminal->cursor_counter = CURSOR_OFF_COUNTER;
+      } else {
+        terminal->cursor_on = true;
+        terminal->cursor_counter = CURSOR_ON_COUNTER;
+      }
+    }
   }
 }
 
@@ -515,9 +651,14 @@ void terminal_init(struct terminal *terminal,
   terminal->cursor_last_col = false;
 
   terminal->font = FONT_NORMAL;
+  terminal->italic = false;
   terminal->underlined = false;
-  terminal->active_color = 0xf;
-  terminal->inactive_color = 0;
+  terminal->blink = NO_BLINK;
+  terminal->negative = false;
+  terminal->concealed = false;
+  terminal->crossedout = false;
+  terminal->active_color = DEFAULT_ACTIVE_COLOR;
+  terminal->inactive_color = DEFAULT_INACTIVE_COLOR;
 
   terminal->cursor_counter = CURSOR_ON_COUNTER;
   terminal->cursor_on = true;
@@ -534,5 +675,5 @@ void terminal_init(struct terminal *terminal,
                                     sizeof(terminal->receive_buffer));
 
   terminal->callbacks->screen_clear(0, ROWS, 0);
-  receive_string(terminal, PRODUCT_VERSION PRODUCT_COPYRIGHT "\r\n");
+  receive_string(terminal, PRODUCT_NAME PRODUCT_VERSION PRODUCT_COPYRIGHT "\r\n");
 }

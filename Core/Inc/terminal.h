@@ -14,14 +14,16 @@ struct lock_state {
 enum font {
   FONT_NORMAL,
   FONT_BOLD,
-  FONT_ITALIC,
+  FONT_THIN,
 };
 
 enum scroll { SCROLL_UP, SCROLL_DOWN };
-
+enum blink { NO_BLINK, SLOW_BLINK, RAPID_BLINK };
 typedef uint8_t color_t;
 typedef uint8_t character_t;
 
+#define DEFAULT_ACTIVE_COLOR 0xf
+#define DEFAULT_INACTIVE_COLOR 0
 #define CHARACTER_MAX UINT8_MAX
 
 #define COLS 80
@@ -32,7 +34,8 @@ struct terminal_callbacks {
   void (*uart_transmit)(void *data, uint16_t size);
   void (*uart_receive)(void *data, uint16_t size);
   void (*screen_draw_character)(size_t row, size_t col, character_t character,
-                                enum font font, bool underlined, color_t active,
+                                enum font font, bool italic, bool underlined,
+                                bool crossedout, color_t active,
                                 color_t inactive);
   void (*screen_draw_cursor)(size_t row, size_t col, color_t color);
   void (*screen_clear)(size_t from_row, size_t to_row, color_t inactive);
@@ -71,7 +74,12 @@ struct terminal {
   bool cursor_last_col;
 
   enum font font;
+  bool italic;
   bool underlined;
+  enum blink blink;
+  bool negative;
+  bool concealed;
+  bool crossedout;
   color_t active_color;
   color_t inactive_color;
 

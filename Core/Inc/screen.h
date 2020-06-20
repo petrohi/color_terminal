@@ -24,8 +24,9 @@ void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
                    size_t to_row, size_t rows, color_t inactive);
 
 void screen_draw_character(struct screen *screen, size_t row, size_t col,
-                           uint8_t character, enum font font, bool underlined,
-                           color_t active, color_t inactive);
+                           uint8_t character, enum font font, bool italic,
+                           bool underlined, bool crossedout, color_t active,
+                           color_t inactive);
 
 void screen_draw_cursor(struct screen *screen, size_t row, size_t col,
                         color_t color);

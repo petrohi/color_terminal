@@ -38,8 +38,9 @@ void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
 }
 
 void screen_draw_character(struct screen *screen, size_t row, size_t col,
-                           uint8_t character, enum font font, bool underlined,
-                           color_t active, color_t inactive) {
+                           uint8_t character, enum font font, bool italic,
+                           bool underlined, bool crossedout, color_t active,
+                           color_t inactive) {
 
   if (character >= 0x20) {
     character -= 0x1f;
@@ -49,8 +50,7 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
 
   size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
   const FontRow *font_data =
-      (font == FONT_BOLD ? FontBoldData
-                         : (font == FONT_ITALIC ? FontItalicData : FontData));
+      (font == FONT_BOLD ? FontBoldData : (italic ? FontItalicData : FontData));
 
   for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++) {
     for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
@@ -60,6 +60,8 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
       color_t color = inactive;
 
       if ((underlined && char_y == CHAR_HEIGHT - 1) ||
+          (crossedout && char_y == CHAR_HEIGHT / 2) ||
+
           (char_x < FONT_WIDTH &&
            font_data[character * FONT_HEIGHT + char_y] & (1 << char_x))) {
 
@@ -88,21 +90,31 @@ void screen_draw_cursor(struct screen *screen, size_t row, size_t col,
 static const struct {
   color_t active;
   enum font font;
+  bool italic;
   bool underlined;
-} font_tests[] = {{9, FONT_NORMAL, false},  {10, FONT_BOLD, false},
-                  {11, FONT_ITALIC, false}, {12, FONT_NORMAL, true},
-                  {13, FONT_BOLD, true},    {14, FONT_ITALIC, true}};
+  bool crossedout;
+} font_tests[] = {
+    {9, FONT_NORMAL, false, false, false},
+    {10, FONT_BOLD, false, false, false},
+    {11, FONT_NORMAL, true, false, false},
+    {12, FONT_NORMAL, false, true, false},
+    {13, FONT_BOLD, false, true, false},
+    {14, FONT_NORMAL, true, true, false},
+    {12, FONT_NORMAL, false, true, true},
+    {13, FONT_BOLD, false, true, true},
+    {14, FONT_NORMAL, true, true, true},
+};
 
 void screen_test_fonts(struct screen *screen) {
-  for (size_t i = 0; i < 6; i++) {
+  for (size_t i = 0; i < 9; i++) {
     for (size_t row = 0; row < 8; row++) {
       for (size_t col = 0; col < 16; col++) {
         uint8_t character = ((row * 16) + col);
 
-        screen_draw_character(screen, row + (8 * (i / 3)), col + (16 * (i % 3)),
-                              character, font_tests[i].font,
-                              font_tests[i].underlined, font_tests[i].active,
-                              0);
+        screen_draw_character(
+            screen, row + (8 * (i / 3)), col + (16 * (i % 3)), character,
+            font_tests[i].font, font_tests[i].italic, font_tests[i].underlined,
+            font_tests[i].crossedout, font_tests[i].active, 0);
       }
     }
   }
