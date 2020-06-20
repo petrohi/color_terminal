@@ -61,10 +61,10 @@ void keyboard_handle(struct terminal *terminal) {
     HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
 
     if (info) {
-      terminal_handle_shift(terminal, info->lshift || info->rshift);
-      terminal_handle_alt(terminal, info->lalt || info->ralt);
-      terminal_handle_ctrl(terminal, info->lctrl || info->rctrl);
-      terminal_handle_key(terminal, info->keys[0]);
+      terminal_keyboard_handle_shift(terminal, info->lshift || info->rshift);
+      terminal_keyboard_handle_alt(terminal, info->lalt || info->ralt);
+      terminal_keyboard_handle_ctrl(terminal, info->lctrl || info->rctrl);
+      terminal_keyboard_handle_key(terminal, info->keys[0]);
     }
   }
 }

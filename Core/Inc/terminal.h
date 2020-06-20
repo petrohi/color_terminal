@@ -43,6 +43,7 @@ struct terminal_callbacks {
                             color_t inactive);
   void (*screen_scroll)(enum scroll scroll, size_t from_row, size_t to_row,
                         size_t rows, color_t inactive);
+  void (*system_reset)();
 };
 
 #define TRANSMIT_BUFFER_SIZE 256
@@ -85,11 +86,11 @@ struct terminal {
   color_t active_color;
   color_t inactive_color;
 
-  uint32_t uart_receive_count;
-
   volatile uint16_t cursor_counter;
   volatile bool cursor_on;
   bool cursor_inverted;
+
+  uint32_t uart_receive_count;
 
   const receive_table_t *receive_table;
 
@@ -103,14 +104,14 @@ struct terminal {
 
 void terminal_init(struct terminal *terminal,
                    const struct terminal_callbacks *callbacks);
-void terminal_handle_key(struct terminal *terminal, uint8_t key);
-void terminal_handle_shift(struct terminal *terminal, bool shift);
-void terminal_handle_alt(struct terminal *terminal, bool alt);
-void terminal_handle_ctrl(struct terminal *terminal, bool ctrl);
+void terminal_keyboard_handle_key(struct terminal *terminal, uint8_t key);
+void terminal_keyboard_handle_shift(struct terminal *terminal, bool shift);
+void terminal_keyboard_handle_alt(struct terminal *terminal, bool alt);
+void terminal_keyboard_handle_ctrl(struct terminal *terminal, bool ctrl);
 
 void terminal_uart_receive(struct terminal *terminal, uint32_t count);
 void terminal_timer_tick(struct terminal *terminal);
-void terminal_update_cursor(struct terminal *terminal);
-void terminal_repeat_key(struct terminal *terminal);
+void terminal_screen_update_cursor(struct terminal *terminal);
+void terminal_keyboard_repeat_key(struct terminal *terminal);
 
 #endif

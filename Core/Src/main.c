@@ -229,7 +229,8 @@ int main(void)
       .screen_draw_cursor = screen_draw_cursor_callback,
       .screen_clear_rows = screen_clear_rows_callback,
       .screen_clear_cols = screen_clear_cols_callback,
-      .screen_scroll = screen_scroll_callback};
+      .screen_scroll = screen_scroll_callback,
+      .system_reset = HAL_NVIC_SystemReset};
   terminal_init(&terminal, &callbacks);
   start_timer();
 
@@ -265,8 +266,8 @@ int main(void)
 
     keyboard_handle(&terminal);
     terminal_uart_receive(&terminal, uart_receive_count());
-    terminal_update_cursor(&terminal);
-    terminal_repeat_key(&terminal);
+    terminal_screen_update_cursor(&terminal);
+    terminal_keyboard_repeat_key(&terminal);
   }
   /* USER CODE END 3 */
 }

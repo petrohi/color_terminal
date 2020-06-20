@@ -80,6 +80,9 @@ Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dsi.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
 Core/Src/dma.c \
 Core/Src/terminal.c \
+Core/Src/terminal_screen.c \
+Core/Src/terminal_uart.c \
+Core/Src/terminal_keyboard.c \
 Core/Src/tim.c
 
 # ASM sources
