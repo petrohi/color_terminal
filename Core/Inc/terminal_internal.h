@@ -44,5 +44,7 @@ void terminal_screen_reverse_line_feed(struct terminal *terminal, int16_t rows);
 void terminal_screen_put_character(struct terminal *terminal,
                                    character_t character);
 
+void terminal_screen_enable_cursor(struct terminal *terminal, bool enable);
+
 #endif
 

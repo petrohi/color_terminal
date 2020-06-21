@@ -9,12 +9,14 @@ static void invert_cursor(struct terminal *terminal) {
 }
 
 static void clear_cursor(struct terminal *terminal) {
-  if (terminal->cursor_inverted) {
-    invert_cursor(terminal);
+  if (terminal->cursor_counter) {
+    if (terminal->cursor_inverted) {
+      invert_cursor(terminal);
+    }
+    terminal->cursor_counter = CURSOR_ON_COUNTER;
+    terminal->cursor_on = true;
+    terminal->cursor_inverted = false;
   }
-  terminal->cursor_counter = CURSOR_ON_COUNTER;
-  terminal->cursor_on = true;
-  terminal->cursor_inverted = false;
 }
 
 void terminal_screen_move_cursor(struct terminal *terminal, int16_t row,
@@ -113,6 +115,21 @@ void terminal_screen_put_character(struct terminal *terminal,
     terminal->cursor_last_col = true;
   else
     terminal->cursor_col++;
+}
+
+void terminal_screen_enable_cursor(struct terminal *terminal, bool enable) {
+  clear_cursor(terminal);
+
+  if (enable) {
+    terminal->cursor_counter = CURSOR_ON_COUNTER;
+    terminal->cursor_on = true;
+  }
+  else {
+    terminal->cursor_counter = 0;
+    terminal->cursor_on = false;
+  }
+
+  terminal->cursor_inverted = false;
 }
 
 void terminal_screen_update_cursor_counter(struct terminal *terminal) {

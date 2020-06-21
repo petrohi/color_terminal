@@ -41,6 +41,27 @@ static void receive_lf(struct terminal *terminal, character_t character) {
   terminal_screen_line_feed(terminal, 1);
 }
 
+static void receive_bs(struct terminal *terminal, character_t character) {
+  terminal_screen_move_cursor(terminal, terminal->cursor_row,
+                              terminal->cursor_col - 1);
+}
+
+static void receive_nel(struct terminal *terminal, character_t character) {
+  terminal_screen_carriage_return(terminal);
+  terminal_screen_line_feed(terminal, 1);
+  clear_receive_table(terminal);
+}
+
+static void receive_ind(struct terminal *terminal, character_t character) {
+  terminal_screen_line_feed(terminal, 1);
+  clear_receive_table(terminal);
+}
+
+static void receive_ri(struct terminal *terminal, character_t character) {
+  terminal_screen_reverse_line_feed(terminal, 1);
+  clear_receive_table(terminal);
+}
+
 static const receive_table_t csi_receive_table;
 
 static void receive_csi(struct terminal *terminal, character_t character) {
@@ -444,6 +465,35 @@ static void receive_decaln(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static const receive_table_t csi_decmod_receive_table;
+
+static void receive_csi_decmod(struct terminal *terminal,
+                               character_t character) {
+  terminal->receive_table = &csi_decmod_receive_table;
+}
+
+static void receive_decsm(struct terminal *terminal, character_t character) {
+  int16_t mode = get_csi_param(terminal, 0);
+
+  switch (mode) {
+  case 25:
+    terminal_screen_enable_cursor(terminal, true);
+    break;
+  }
+  clear_receive_table(terminal);
+}
+
+static void receive_decrm(struct terminal *terminal, character_t character) {
+  int16_t mode = get_csi_param(terminal, 0);
+
+  switch (mode) {
+  case 25:
+    terminal_screen_enable_cursor(terminal, false);
+    break;
+  }
+  clear_receive_table(terminal);
+}
+
 static void receive_printable(struct terminal *terminal,
                               character_t character) {
   terminal_screen_put_character(terminal, character);
@@ -465,7 +515,7 @@ static void receive_character(struct terminal *terminal,
 #define RECEIVE_HANDLER(c, h) [c] = h
 #define DEFAULT_RECEIVE_HANDLER(h) [DEFAULT_RECEIVE] = h
 
-#define DEFAULT_RECEIVE_TABLE(h)                                               \
+#define DEFAULT_RECEIVE_TABLE                                               \
   RECEIVE_HANDLER('\x00', receive_ignore),                                     \
       RECEIVE_HANDLER('\x01', receive_ignore),                                 \
       RECEIVE_HANDLER('\x02', receive_ignore),                                 \
@@ -474,11 +524,11 @@ static void receive_character(struct terminal *terminal,
       RECEIVE_HANDLER('\x05', receive_ignore),                                 \
       RECEIVE_HANDLER('\x06', receive_ignore),                                 \
       RECEIVE_HANDLER('\x07', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x08', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x08', receive_bs),                                     \
       RECEIVE_HANDLER('\x09', receive_ignore),                                 \
       RECEIVE_HANDLER('\x0a', receive_lf),                                     \
-      RECEIVE_HANDLER('\x0b', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x0c', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x0b', receive_lf),                                     \
+      RECEIVE_HANDLER('\x0c', receive_lf),                                     \
       RECEIVE_HANDLER('\x0d', receive_cr),                                     \
       RECEIVE_HANDLER('\x0e', receive_ignore),                                 \
       RECEIVE_HANDLER('\x0f', receive_ignore),                                 \
@@ -498,32 +548,41 @@ static void receive_character(struct terminal *terminal,
       RECEIVE_HANDLER('\x1d', receive_ignore),                                 \
       RECEIVE_HANDLER('\x1e', receive_ignore),                                 \
       RECEIVE_HANDLER('\x1f', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x7f', receive_ignore), DEFAULT_RECEIVE_HANDLER(h)
+      RECEIVE_HANDLER('\x7f', receive_bs)
 
 static const receive_table_t default_receive_table = {
-    DEFAULT_RECEIVE_TABLE(receive_printable),
+    DEFAULT_RECEIVE_TABLE,
+    DEFAULT_RECEIVE_HANDLER(receive_printable),
 };
 
 static const receive_table_t esc_receive_table = {
-    DEFAULT_RECEIVE_TABLE(receive_unexpected),
+    DEFAULT_RECEIVE_TABLE,
     RECEIVE_HANDLER('[', receive_csi),
     RECEIVE_HANDLER('#', receive_hash),
     RECEIVE_HANDLER('c', receive_ris),
+    RECEIVE_HANDLER('E', receive_nel),
+    RECEIVE_HANDLER('D', receive_ind),
+    RECEIVE_HANDLER('M', receive_ri),
+    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
+#define CSI_RECEIVE_TABLE                                                      \
+  RECEIVE_HANDLER('0', receive_csi_param),                                     \
+      RECEIVE_HANDLER('1', receive_csi_param),                                 \
+      RECEIVE_HANDLER('2', receive_csi_param),                                 \
+      RECEIVE_HANDLER('3', receive_csi_param),                                 \
+      RECEIVE_HANDLER('4', receive_csi_param),                                 \
+      RECEIVE_HANDLER('5', receive_csi_param),                                 \
+      RECEIVE_HANDLER('6', receive_csi_param),                                 \
+      RECEIVE_HANDLER('7', receive_csi_param),                                 \
+      RECEIVE_HANDLER('8', receive_csi_param),                                 \
+      RECEIVE_HANDLER('9', receive_csi_param),                                 \
+      RECEIVE_HANDLER(';', receive_csi_param_delimiter)
+
 static const receive_table_t csi_receive_table = {
-    DEFAULT_RECEIVE_TABLE(receive_unexpected),
-    RECEIVE_HANDLER('0', receive_csi_param),
-    RECEIVE_HANDLER('1', receive_csi_param),
-    RECEIVE_HANDLER('2', receive_csi_param),
-    RECEIVE_HANDLER('3', receive_csi_param),
-    RECEIVE_HANDLER('4', receive_csi_param),
-    RECEIVE_HANDLER('5', receive_csi_param),
-    RECEIVE_HANDLER('6', receive_csi_param),
-    RECEIVE_HANDLER('7', receive_csi_param),
-    RECEIVE_HANDLER('8', receive_csi_param),
-    RECEIVE_HANDLER('9', receive_csi_param),
-    RECEIVE_HANDLER(';', receive_csi_param_delimiter),
+    DEFAULT_RECEIVE_TABLE,
+    CSI_RECEIVE_TABLE,
+    RECEIVE_HANDLER('?', receive_csi_decmod),
     RECEIVE_HANDLER('c', receive_da),
     RECEIVE_HANDLER('f', receive_hvp),
     RECEIVE_HANDLER('h', receive_sm),
@@ -543,11 +602,21 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER('K', receive_el),
     RECEIVE_HANDLER('S', receive_su),
     RECEIVE_HANDLER('T', receive_sd),
+    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
+};
+
+static const receive_table_t csi_decmod_receive_table = {
+    DEFAULT_RECEIVE_TABLE,
+    CSI_RECEIVE_TABLE,
+    RECEIVE_HANDLER('h', receive_decsm),
+    RECEIVE_HANDLER('l', receive_decrm),
+    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
 static const receive_table_t hash_receive_table = {
-    DEFAULT_RECEIVE_TABLE(receive_unexpected),
+    DEFAULT_RECEIVE_TABLE,
     RECEIVE_HANDLER('8', receive_decaln),
+    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
 void terminal_uart_receive_string(struct terminal *terminal,
