@@ -111,9 +111,10 @@ void terminal_screen_put_character(struct terminal *terminal,
         terminal->vs.font, terminal->vs.italic, terminal->vs.underlined,
         terminal->vs.crossedout, active, inactive);
 
-  if (terminal->vs.cursor_col == COLS - 1)
-    terminal->vs.cursor_last_col = true;
-  else
+  if (terminal->vs.cursor_col == COLS - 1) {
+    if (terminal->auto_wrap_mode)
+      terminal->vs.cursor_last_col = true;
+  } else
     terminal->vs.cursor_col++;
 }
 
@@ -167,6 +168,8 @@ void terminal_screen_update_cursor(struct terminal *terminal) {
 }
 
 void terminal_screen_init(struct terminal *terminal) {
+  terminal->auto_wrap_mode = true;
+
   terminal->vs.cursor_row = 0;
   terminal->vs.cursor_col = 0;
   terminal->vs.cursor_last_col = false;

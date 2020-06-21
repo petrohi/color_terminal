@@ -89,6 +89,7 @@ struct terminal {
   uint8_t ctrl_state : 1;
 
   bool new_line_mode;
+  bool auto_wrap_mode;
 
   struct visual_state vs;
   struct visual_state saved_vs;

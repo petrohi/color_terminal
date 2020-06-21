@@ -165,6 +165,9 @@ static void receive_sm(struct terminal *terminal, character_t character) {
   case 20:
     terminal->new_line_mode = true;
     break;
+  default:
+    printf("CSI %d h\r\n", mode);
+    break;
   }
   clear_receive_table(terminal);
 }
@@ -175,6 +178,9 @@ static void receive_rm(struct terminal *terminal, character_t character) {
   switch (mode) {
   case 20:
     terminal->new_line_mode = false;
+    break;
+  default:
+    printf("CSI %d l\r\n", mode);
     break;
   }
   clear_receive_table(terminal);
@@ -192,6 +198,9 @@ static void receive_dsr(struct terminal *terminal, character_t character) {
     terminal_uart_transmit_printf(terminal, "\33[%d;%dR",
                                   terminal->vs.cursor_row + 1,
                                   terminal->vs.cursor_col + 1);
+    break;
+  default:
+    printf("DSR %d\r\n", code);
     break;
   }
 
@@ -220,7 +229,7 @@ static color_t get_sgr_color(struct terminal *terminal, size_t *i) {
     uint8_t g = get_csi_param(terminal, (*i)++);
     uint8_t b = get_csi_param(terminal, (*i)++);
 
-    printf("SGR 2;%d;%d;%d\r\n", r, g, b);
+    printf("SGR <color>;2;%d;%d;%d\r\n", r, g, b);
     // TODO: get the closest color from CLUT
   }
   return DEFAULT_ACTIVE_COLOR;
@@ -228,6 +237,7 @@ static color_t get_sgr_color(struct terminal *terminal, size_t *i) {
 
 static void handle_sgr(struct terminal *terminal, size_t *i) {
   uint16_t code = get_csi_param(terminal, (*i)++);
+  bool unhandled = false;
 
   switch (code) {
   case 0:
@@ -323,19 +333,24 @@ static void handle_sgr(struct terminal *terminal, size_t *i) {
   case 49:
     terminal->vs.inactive_color = DEFAULT_INACTIVE_COLOR;
     break;
+
+  default:
+    unhandled = true;
+    break;
   }
 
-  if (code >= 30 && code < 38)
-    terminal->vs.active_color = code - 30;
-
-  if (code >= 40 && code < 48)
-    terminal->vs.inactive_color = code - 40;
-
-  if (code >= 90 && code < 98)
-    terminal->vs.active_color = code - 90 + 8;
-
-  if (code >= 100 && code < 108)
-    terminal->vs.inactive_color = code - 100 + 8;
+  if (unhandled) {
+    if (code >= 30 && code < 38)
+      terminal->vs.active_color = code - 30;
+    else if (code >= 40 && code < 48)
+      terminal->vs.inactive_color = code - 40;
+    else if (code >= 90 && code < 98)
+      terminal->vs.active_color = code - 90 + 8;
+    else if (code >= 100 && code < 108)
+      terminal->vs.inactive_color = code - 100 + 8;
+    else
+      printf("SGR %d\r\n", code);
+  }
 }
 
 static void receive_sgr(struct terminal *terminal, character_t character) {
@@ -463,6 +478,10 @@ static void receive_ed(struct terminal *terminal, character_t character) {
     terminal_screen_clear_rows(terminal, 0, ROWS);
 
     break;
+
+  default:
+    printf("ED %d\r\n", code);
+    break;
   }
 
   clear_receive_table(terminal);
@@ -488,6 +507,10 @@ static void receive_el(struct terminal *terminal, character_t character) {
   case 2:
     terminal_screen_clear_cols(terminal, terminal->vs.cursor_row, 0, COLS);
 
+    break;
+
+  default:
+    printf("EL %d\r\n", code);
     break;
   }
 
@@ -516,8 +539,14 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
   int16_t mode = get_csi_param(terminal, 0);
 
   switch (mode) {
-  case 25:
+  case 7: // DECAWM
+    terminal->auto_wrap_mode = true;
+    break;
+  case 25: // DECTCEM
     terminal_screen_enable_cursor(terminal, true);
+    break;
+  default:
+    printf("CSI ? %d h\r\n", mode);
     break;
   }
   clear_receive_table(terminal);
@@ -527,8 +556,14 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
   int16_t mode = get_csi_param(terminal, 0);
 
   switch (mode) {
-  case 25:
+  case 7: // DECAWM
+    terminal->auto_wrap_mode = false;
+    break;
+  case 25: // DECTCEM
     terminal_screen_enable_cursor(terminal, false);
+    break;
+  default:
+    printf("CSI ? %d l\r\n", mode);
     break;
   }
   clear_receive_table(terminal);
@@ -563,7 +598,7 @@ static void receive_unexpected(struct terminal *terminal,
   else if (terminal->receive_table == &so_receive_table)
     printf("ESC ) %c\r\n", character);
   else if (terminal->receive_table == &csi_receive_table)
-    printf("CSI # %c\r\n", character);
+    printf("CSI %c\r\n", character);
   else if (terminal->receive_table == &csi_decmod_receive_table)
     printf("CSI ? %c\r\n", character);
 
