@@ -22,11 +22,6 @@ static void clear_receive_table(struct terminal *terminal) {
   terminal->receive_table = &default_receive_table;
 }
 
-static void receive_unexpected(struct terminal *terminal,
-                               character_t character) {
-  clear_receive_table(terminal);
-}
-
 static const receive_table_t esc_receive_table;
 
 static void receive_esc(struct terminal *terminal, character_t character) {
@@ -79,14 +74,44 @@ static void receive_csi(struct terminal *terminal, character_t character) {
   clear_csi_params(terminal);
 }
 
-static const receive_table_t hash_receive_table;
+static const receive_table_t esc_hash_receive_table;
 
 static void receive_hash(struct terminal *terminal, character_t character) {
-  terminal->receive_table = &hash_receive_table;
+  terminal->receive_table = &esc_hash_receive_table;
+}
+
+static void receive_deckpam(struct terminal *terminal, character_t character) {
+  // TODO: reset num lock
+  clear_receive_table(terminal);
+}
+
+static void receive_deckpnm(struct terminal *terminal, character_t character) {
+  // TODO: set num lock
+  clear_receive_table(terminal);
 }
 
 static void receive_ris(struct terminal *terminal, character_t character) {
   terminal->callbacks->system_reset();
+}
+
+static const receive_table_t si_receive_table;
+
+static void receive_si(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &si_receive_table;
+}
+
+static const receive_table_t so_receive_table;
+
+static void receive_so(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &so_receive_table;
+}
+
+static void receive_scs_g0(struct terminal *terminal, character_t character) {
+  clear_receive_table(terminal);
+}
+
+static void receive_scs_g1(struct terminal *terminal, character_t character) {
+  clear_receive_table(terminal);
 }
 
 static void receive_csi_param(struct terminal *terminal,
@@ -191,7 +216,12 @@ static color_t get_sgr_color(struct terminal *terminal, size_t *i) {
   if (code == 5) {
     return get_csi_param(terminal, (*i)++);
   } else if (code == 2) {
-    (*i) += 3;
+    uint8_t r = get_csi_param(terminal, (*i)++);
+    uint8_t g = get_csi_param(terminal, (*i)++);
+    uint8_t b = get_csi_param(terminal, (*i)++);
+
+    printf("SGR 2;%d;%d;%d\r\n", r, g, b);
+    // TODO: get the closest color from CLUT
   }
   return DEFAULT_ACTIVE_COLOR;
 }
@@ -504,12 +534,41 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static const receive_table_t osc_receive_table;
+
+static void receive_osc(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &osc_receive_table;
+}
+
+static void receive_osc_data(struct terminal *terminal, character_t character) {
+  if (character == '\x07')
+    clear_receive_table(terminal);
+}
+
 static void receive_printable(struct terminal *terminal,
                               character_t character) {
   terminal_screen_put_character(terminal, character);
 }
 
 static void receive_ignore(struct terminal *terminal, character_t character) {}
+
+static void receive_unexpected(struct terminal *terminal,
+                               character_t character) {
+  if (terminal->receive_table == &esc_receive_table)
+    printf("ESC %c\r\n", character);
+  else if (terminal->receive_table == &esc_hash_receive_table)
+    printf("ESC # %c\r\n", character);
+  else if (terminal->receive_table == &si_receive_table)
+    printf("ESC ( %c\r\n", character);
+  else if (terminal->receive_table == &so_receive_table)
+    printf("ESC ) %c\r\n", character);
+  else if (terminal->receive_table == &csi_receive_table)
+    printf("CSI # %c\r\n", character);
+  else if (terminal->receive_table == &csi_decmod_receive_table)
+    printf("CSI ? %c\r\n", character);
+
+  clear_receive_table(terminal);
+}
 
 static void receive_character(struct terminal *terminal,
                               character_t character) {
@@ -568,13 +627,18 @@ static const receive_table_t default_receive_table = {
 static const receive_table_t esc_receive_table = {
     DEFAULT_RECEIVE_TABLE,
     RECEIVE_HANDLER('[', receive_csi),
+    RECEIVE_HANDLER(']', receive_osc),
     RECEIVE_HANDLER('#', receive_hash),
+    RECEIVE_HANDLER('=', receive_deckpam),
+    RECEIVE_HANDLER('>', receive_deckpnm),
     RECEIVE_HANDLER('c', receive_ris),
     RECEIVE_HANDLER('E', receive_nel),
     RECEIVE_HANDLER('D', receive_ind),
     RECEIVE_HANDLER('M', receive_ri),
     RECEIVE_HANDLER('7', receive_decsc),
     RECEIVE_HANDLER('8', receive_decrc),
+    RECEIVE_HANDLER('(', receive_si),
+    RECEIVE_HANDLER(')', receive_so),
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
@@ -625,10 +689,35 @@ static const receive_table_t csi_decmod_receive_table = {
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
-static const receive_table_t hash_receive_table = {
+static const receive_table_t esc_hash_receive_table = {
     DEFAULT_RECEIVE_TABLE,
     RECEIVE_HANDLER('8', receive_decaln),
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
+};
+
+static const receive_table_t si_receive_table = {
+    DEFAULT_RECEIVE_TABLE,
+    RECEIVE_HANDLER('A', receive_scs_g0),
+    RECEIVE_HANDLER('B', receive_scs_g0),
+    RECEIVE_HANDLER('0', receive_scs_g0),
+    RECEIVE_HANDLER('1', receive_scs_g0),
+    RECEIVE_HANDLER('2', receive_scs_g0),
+    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
+};
+
+static const receive_table_t so_receive_table = {
+    DEFAULT_RECEIVE_TABLE,
+    RECEIVE_HANDLER('A', receive_scs_g1),
+    RECEIVE_HANDLER('B', receive_scs_g1),
+    RECEIVE_HANDLER('0', receive_scs_g1),
+    RECEIVE_HANDLER('1', receive_scs_g1),
+    RECEIVE_HANDLER('2', receive_scs_g1),
+    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
+};
+
+static const receive_table_t osc_receive_table = {
+    DEFAULT_RECEIVE_TABLE,
+    DEFAULT_RECEIVE_HANDLER(receive_osc_data),
 };
 
 void terminal_uart_receive_string(struct terminal *terminal,
