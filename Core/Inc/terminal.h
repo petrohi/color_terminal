@@ -59,6 +59,22 @@ typedef receive_t receive_table_t[CHARACTER_MAX + 1];
 #define CSI_MAX_PARAMS_COUNT 10
 #define CSI_MAX_PARAM_LENGTH 4
 
+struct visual_state {
+  int16_t cursor_row;
+  int16_t cursor_col;
+  bool cursor_last_col;
+
+  enum font font;
+  bool italic;
+  bool underlined;
+  enum blink blink;
+  bool negative;
+  bool concealed;
+  bool crossedout;
+  color_t active_color;
+  color_t inactive_color;
+};
+
 struct terminal {
   const struct terminal_callbacks *callbacks;
 
@@ -74,19 +90,8 @@ struct terminal {
 
   bool new_line_mode;
 
-  int16_t cursor_row;
-  int16_t cursor_col;
-  bool cursor_last_col;
-
-  enum font font;
-  bool italic;
-  bool underlined;
-  enum blink blink;
-  bool negative;
-  bool concealed;
-  bool crossedout;
-  color_t active_color;
-  color_t inactive_color;
+  struct visual_state vs;
+  struct visual_state saved_vs;
 
   volatile uint16_t cursor_counter;
   volatile bool cursor_on;

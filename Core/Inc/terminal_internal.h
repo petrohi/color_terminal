@@ -46,5 +46,9 @@ void terminal_screen_put_character(struct terminal *terminal,
 
 void terminal_screen_enable_cursor(struct terminal *terminal, bool enable);
 
+void terminal_screen_save_visual_state(struct terminal *terminal);
+
+void terminal_screen_restore_visual_state(struct terminal *terminal);
+
 #endif
 
