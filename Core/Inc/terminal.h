@@ -56,8 +56,8 @@ struct terminal;
 typedef void (*receive_t)(struct terminal *, character_t);
 typedef receive_t receive_table_t[CHARACTER_MAX + 1];
 
-#define CSI_MAX_PARAMS_COUNT 10
-#define CSI_MAX_PARAM_LENGTH 4
+#define CSI_MAX_PARAMS_COUNT 8
+#define CSI_MAX_PARAM_LENGTH 16
 
 struct visual_state {
   int16_t cursor_row;
