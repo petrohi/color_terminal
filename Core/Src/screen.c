@@ -54,8 +54,12 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
                            bool underlined, bool crossedout, color_t active,
                            color_t inactive) {
 
-  if (character >= 0x20) {
+  if (character >= 0x20 && character <= 0x7e) {
     character -= 0x1f;
+  } else if (character == 0xa0) {
+    character = 1;
+  } else if (character >= 0xa1 && character <= 0xff) {
+    character -= 0x41;
   } else {
     character = 0;
   }
@@ -111,20 +115,16 @@ static const struct {
     {11, FONT_NORMAL, true, false, false},
     {12, FONT_NORMAL, false, true, false},
     {13, FONT_BOLD, false, true, false},
-    {14, FONT_NORMAL, true, true, false},
-    {12, FONT_NORMAL, false, true, true},
-    {13, FONT_BOLD, false, true, true},
-    {14, FONT_NORMAL, true, true, true},
 };
 
 void screen_test_fonts(struct screen *screen) {
-  for (size_t i = 0; i < 9; i++) {
-    for (size_t row = 0; row < 8; row++) {
+  for (size_t i = 0; i < 5; i++) {
+    for (size_t row = 0; row < 16; row++) {
       for (size_t col = 0; col < 16; col++) {
         uint8_t character = ((row * 16) + col);
 
         screen_draw_character(
-            screen, row + (8 * (i / 3)), col + (16 * (i % 3)), character,
+            screen, row, col + 16 * i, character,
             font_tests[i].font, font_tests[i].italic, font_tests[i].underlined,
             font_tests[i].crossedout, font_tests[i].active, 0);
       }
