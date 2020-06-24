@@ -81,12 +81,14 @@ static void receive_hash(struct terminal *terminal, character_t character) {
 }
 
 static void receive_deckpam(struct terminal *terminal, character_t character) {
-  // TODO: reset num lock
+  terminal->lock_state.num = 0;
+  terminal_update_keyboard_leds(terminal);
   clear_receive_table(terminal);
 }
 
 static void receive_deckpnm(struct terminal *terminal, character_t character) {
-  // TODO: set num lock
+  terminal->lock_state.num = 1;
+  terminal_update_keyboard_leds(terminal);
   clear_receive_table(terminal);
 }
 
@@ -162,9 +164,14 @@ static void receive_sm(struct terminal *terminal, character_t character) {
   int16_t mode = get_csi_param(terminal, 0);
 
   switch (mode) {
-  case 20:
+  case 2: // KAM
+    terminal->keyboard_action_mode = true;
+    break;
+
+  case 20: // LNM
     terminal->new_line_mode = true;
     break;
+
   default:
     printf("CSI %d h\r\n", mode);
     break;
@@ -176,9 +183,14 @@ static void receive_rm(struct terminal *terminal, character_t character) {
   int16_t mode = get_csi_param(terminal, 0);
 
   switch (mode) {
-  case 20:
+  case 2: // KAM
+    terminal->keyboard_action_mode = false;
+    break;
+
+  case 20: // LNM
     terminal->new_line_mode = false;
     break;
+
   default:
     printf("CSI %d l\r\n", mode);
     break;
@@ -539,12 +551,45 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
   int16_t mode = get_csi_param(terminal, 0);
 
   switch (mode) {
+  case 1: // DECCKM
+    terminal->cursor_key_mode = true;
+    break;
+
+  case 2: // DECANM
+    terminal->cursor_key_mode = true;
+    break;
+
+  case 3: // DECCOLM
+    terminal->column_mode = true;
+    break;
+
+  case 4: // DECSCKL
+    terminal->screen_mode = true;
+    break;
+
+  case 5: // DECSCNM
+    terminal->scrolling_mode = true;
+    break;
+
+  case 6: // DECCOM
+    terminal->origin_mode = false;
+    break;
+
   case 7: // DECAWM
     terminal->auto_wrap_mode = true;
     break;
+
+  case 8: // DECARM
+    terminal->auto_repeat_mode = true;
+    break;
+
+  case 9: // DECINLM
+    break;
+
   case 25: // DECTCEM
     terminal_screen_enable_cursor(terminal, true);
     break;
+
   default:
     printf("CSI ? %d h\r\n", mode);
     break;
@@ -556,12 +601,45 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
   int16_t mode = get_csi_param(terminal, 0);
 
   switch (mode) {
+  case 1: // DECCKM
+    terminal->cursor_key_mode = false;
+    break;
+
+  case 2: // DECANM
+    terminal->cursor_key_mode = false;
+    break;
+
+  case 3: // DECCOLM
+    terminal->column_mode = false;
+    break;
+
+  case 4: // DECSCKL
+    terminal->screen_mode = false;
+    break;
+
+  case 5: // DECSCNM
+    terminal->scrolling_mode = false;
+    break;
+
+  case 6: // DECCOM
+    terminal->origin_mode = false;
+    break;
+
   case 7: // DECAWM
     terminal->auto_wrap_mode = false;
     break;
+
+  case 8: // DECARM
+    terminal->auto_repeat_mode = false;
+    break;
+
+  case 9: // DECINLM
+    break;
+
   case 25: // DECTCEM
     terminal_screen_enable_cursor(terminal, false);
     break;
+
   default:
     printf("CSI ? %d l\r\n", mode);
     break;

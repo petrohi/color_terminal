@@ -89,7 +89,15 @@ struct terminal {
   uint8_t ctrl_state : 1;
 
   bool new_line_mode;
+  bool cursor_key_mode; // TODO
+  bool keyboard_action_mode;
+  bool auto_repeat_mode;
+
   bool auto_wrap_mode;
+  bool scrolling_mode; // TODO
+  bool column_mode; // TODO
+  bool screen_mode; // TODO
+  bool origin_mode; // TODO
 
   struct visual_state vs;
   struct visual_state saved_vs;

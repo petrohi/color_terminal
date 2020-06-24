@@ -168,7 +168,11 @@ void terminal_screen_update_cursor(struct terminal *terminal) {
 }
 
 void terminal_screen_init(struct terminal *terminal) {
-  terminal->auto_wrap_mode = false;
+  terminal->auto_wrap_mode = true;
+  terminal->scrolling_mode = false;
+  terminal->column_mode = false;
+  terminal->screen_mode = false;
+  terminal->origin_mode = false;
 
   terminal->vs.cursor_row = 0;
   terminal->vs.cursor_col = 0;

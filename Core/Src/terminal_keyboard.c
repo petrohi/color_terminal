@@ -48,13 +48,13 @@ static size_t get_new_line_mode(struct terminal *terminal) {
   return terminal->new_line_mode;
 }
 
-static void update_keyboard_leds(struct terminal *terminal) {
+void terminal_update_keyboard_leds(struct terminal *terminal) {
   terminal->callbacks->keyboard_set_leds(terminal->lock_state);
 }
 
 static void handle_caps_lock(struct terminal *terminal) {
   terminal->lock_state.caps ^= 1;
-  update_keyboard_leds(terminal);
+  terminal_update_keyboard_leds(terminal);
 }
 
 #define KEY_IGNORE                                                             \
@@ -247,15 +247,18 @@ static void handle_key(struct terminal *terminal,
 }
 
 void terminal_keyboard_handle_key(struct terminal *terminal, uint8_t key_code) {
+  if (terminal->keyboard_action_mode)
+    return;
+
   if (terminal->pressed_key_code == key_code)
     return;
 
   terminal->pressed_key_code = key_code;
   terminal->repeat_pressed_key = false;
 
-  if (key_code != KEY_NONE && key_code != KEY_ESCAPE && key_code != KEY_TAB &&
-      key_code != KEY_RETURN && key_code != KEY_CAPS_LOCK &&
-      key_code != KEY_KEYPAD_NUM_LOCK_AND_CLEAR &&
+  if (terminal->auto_repeat_mode && key_code != KEY_NONE &&
+      key_code != KEY_ESCAPE && key_code != KEY_TAB && key_code != KEY_RETURN &&
+      key_code != KEY_CAPS_LOCK && key_code != KEY_KEYPAD_NUM_LOCK_AND_CLEAR &&
       key_code != KEY_SCROLL_LOCK && !terminal->ctrl_state) {
     terminal->repeat_counter = FIRST_REPEAT_COUNTER;
   } else {
@@ -305,4 +308,7 @@ void terminal_keyboard_init(struct terminal *terminal) {
   terminal->lock_state.num = 0;
 
   terminal->new_line_mode = false;
+  terminal->cursor_key_mode = false;
+  terminal->keyboard_action_mode = false;
+  terminal->auto_repeat_mode = true;
 }
