@@ -43,6 +43,17 @@ struct terminal_callbacks {
                             color_t inactive);
   void (*screen_scroll)(enum scroll scroll, size_t from_row, size_t to_row,
                         size_t rows, color_t inactive);
+  void (*screen_shift_characters_right)(size_t row, size_t col,
+                                        uint8_t character, enum font font,
+                                        bool italic, bool underlined,
+                                        bool crossedout, color_t active,
+                                        color_t inactive);
+
+  void (*screen_shift_characters_left)(size_t row, size_t col,
+                                       uint8_t character, enum font font,
+                                       bool italic, bool underlined,
+                                       bool crossedout, color_t active,
+                                       color_t inactive);
   void (*system_reset)();
 };
 

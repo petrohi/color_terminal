@@ -27,6 +27,37 @@ void screen_clear_cols(struct screen *screen, size_t row, size_t from_col,
     memset(screen->buffer + offset + (SCREEN_WIDTH * i), inactive, size);
 }
 
+void screen_shift_characters_right(struct screen *screen, size_t row,
+                                   size_t col, uint8_t character,
+                                   enum font font, bool italic, bool underlined,
+                                   bool crossedout, color_t active,
+                                   color_t inactive) {
+  size_t size = CHAR_WIDTH * (COLS - col - 1);
+  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
+
+  for (size_t i = 0; i < CHAR_HEIGHT; ++i)
+    memmove(screen->buffer + offset + (SCREEN_WIDTH * i) + CHAR_WIDTH,
+            screen->buffer + offset + (SCREEN_WIDTH * i), size);
+
+  screen_draw_character(screen, row, col, character, font, italic, underlined,
+                        crossedout, active, inactive);
+}
+
+void screen_shift_characters_left(struct screen *screen, size_t row, size_t col,
+                                  uint8_t character, enum font font,
+                                  bool italic, bool underlined, bool crossedout,
+                                  color_t active, color_t inactive) {
+  size_t size = CHAR_WIDTH * (COLS - col - 1);
+  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
+
+  for (size_t i = 0; i < CHAR_HEIGHT; ++i)
+    memcpy(screen->buffer + offset + (SCREEN_WIDTH * i),
+           screen->buffer + offset + (SCREEN_WIDTH * i) + CHAR_WIDTH, size);
+
+  screen_draw_character(screen, row, COLS - 1, character, font, italic,
+                        underlined, crossedout, active, inactive);
+}
+
 void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
                    size_t to_row, size_t rows, color_t inactive) {
   if (to_row <= from_row + rows)

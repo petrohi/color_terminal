@@ -180,6 +180,22 @@ static void screen_scroll_callback(enum scroll scroll, size_t from_row,
   screen_scroll(ltdc_get_screen(), scroll, from_row, to_row, rows, inactive);
 }
 
+static void screen_shift_characters_right_callback(
+    size_t row, size_t col, uint8_t character, enum font font, bool italic,
+    bool underlined, bool crossedout, color_t active, color_t inactive) {
+  screen_shift_characters_right(ltdc_get_screen(), row, col, character, font,
+                                italic, underlined, crossedout, active,
+                                inactive);
+}
+
+static void screen_shift_characters_left_callback(
+    size_t row, size_t col, uint8_t character, enum font font, bool italic,
+    bool underlined, bool crossedout, color_t active, color_t inactive) {
+  screen_shift_characters_left(ltdc_get_screen(), row, col, character, font,
+                               italic, underlined, crossedout, active,
+                               inactive);
+}
+
 struct terminal terminal;
 
 /* USER CODE END 0 */
@@ -230,6 +246,8 @@ int main(void)
       .screen_clear_rows = screen_clear_rows_callback,
       .screen_clear_cols = screen_clear_cols_callback,
       .screen_scroll = screen_scroll_callback,
+      .screen_shift_characters_left = screen_shift_characters_left_callback,
+      .screen_shift_characters_right = screen_shift_characters_right_callback,
       .system_reset = HAL_NVIC_SystemReset};
   terminal_init(&terminal, &callbacks);
   start_timer();

@@ -160,6 +160,20 @@ static void receive_hvp(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static void receive_hpa(struct terminal *terminal, character_t character) {
+  int16_t col = get_csi_param(terminal, 0);
+
+  terminal_screen_move_cursor(terminal, terminal->vs.cursor_row, col - 1);
+  clear_receive_table(terminal);
+}
+
+static void receive_vpa(struct terminal *terminal, character_t character) {
+  int16_t row = get_csi_param(terminal, 0);
+
+  terminal_screen_move_cursor(terminal, row - 1, terminal->vs.cursor_col);
+  clear_receive_table(terminal);
+}
+
 static void receive_sm(struct terminal *terminal, character_t character) {
   int16_t mode = get_csi_param(terminal, 0);
 
@@ -529,6 +543,33 @@ static void receive_el(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static void receive_ich(struct terminal *terminal, character_t character) {
+  int16_t cols = get_csi_param(terminal, 0);
+  if (!cols)
+    cols = 1;
+
+  terminal_screen_shift_insert(terminal, cols);
+  clear_receive_table(terminal);
+}
+
+static void receive_dch(struct terminal *terminal, character_t character) {
+  int16_t cols = get_csi_param(terminal, 0);
+  if (!cols)
+    cols = 1;
+
+  terminal_screen_shift_delete(terminal, cols);
+  clear_receive_table(terminal);
+}
+
+static void receive_ech(struct terminal *terminal, character_t character) {
+  int16_t cols = get_csi_param(terminal, 0);
+  if (!cols)
+    cols = 1;
+
+  terminal_screen_erase(terminal, cols);
+  clear_receive_table(terminal);
+}
+
 static void receive_decaln(struct terminal *terminal, character_t character) {
   for (size_t row = 0; row < ROWS; ++row)
     for (size_t col = 0; col < COLS; ++col) {
@@ -771,8 +812,11 @@ static const receive_table_t esc_receive_table = {
 static const receive_table_t csi_receive_table = {
     DEFAULT_RECEIVE_TABLE,
     CSI_RECEIVE_TABLE,
+    RECEIVE_HANDLER('`', receive_hpa),
+    RECEIVE_HANDLER('@', receive_ich),
     RECEIVE_HANDLER('?', receive_csi_decmod),
     RECEIVE_HANDLER('c', receive_da),
+    RECEIVE_HANDLER('d', receive_vpa),
     RECEIVE_HANDLER('f', receive_hvp),
     RECEIVE_HANDLER('h', receive_sm),
     RECEIVE_HANDLER('l', receive_rm),
@@ -789,8 +833,10 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER('H', receive_cup),
     RECEIVE_HANDLER('J', receive_ed),
     RECEIVE_HANDLER('K', receive_el),
+    RECEIVE_HANDLER('P', receive_dch),
     RECEIVE_HANDLER('S', receive_su),
     RECEIVE_HANDLER('T', receive_sd),
+    RECEIVE_HANDLER('X', receive_ech),
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
