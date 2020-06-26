@@ -42,14 +42,9 @@ void screen_test_mandelbrot(struct screen *screen, float window_x,
 void screen_test_colors(struct screen *screen);
 
 void screen_shift_characters_right(struct screen *screen, size_t row,
-                                   size_t col, uint8_t character,
-                                   enum font font, bool italic, bool underlined,
-                                   bool crossedout, color_t active,
-                                   color_t inactive);
+                                   size_t col, color_t inactive);
 
 void screen_shift_characters_left(struct screen *screen, size_t row, size_t col,
-                                  uint8_t character, enum font font,
-                                  bool italic, bool underlined, bool crossedout,
-                                  color_t active, color_t inactive);
+                                  color_t inactive);
 
 #endif

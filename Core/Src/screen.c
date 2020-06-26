@@ -28,10 +28,7 @@ void screen_clear_cols(struct screen *screen, size_t row, size_t from_col,
 }
 
 void screen_shift_characters_right(struct screen *screen, size_t row,
-                                   size_t col, uint8_t character,
-                                   enum font font, bool italic, bool underlined,
-                                   bool crossedout, color_t active,
-                                   color_t inactive) {
+                                   size_t col, color_t inactive) {
   size_t size = CHAR_WIDTH * (COLS - col - 1);
   size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
 
@@ -39,14 +36,11 @@ void screen_shift_characters_right(struct screen *screen, size_t row,
     memmove(screen->buffer + offset + (SCREEN_WIDTH * i) + CHAR_WIDTH,
             screen->buffer + offset + (SCREEN_WIDTH * i), size);
 
-  screen_draw_character(screen, row, col, character, font, italic, underlined,
-                        crossedout, active, inactive);
+  screen_clear_cols(screen, row, col, col + 1, inactive);
 }
 
 void screen_shift_characters_left(struct screen *screen, size_t row, size_t col,
-                                  uint8_t character, enum font font,
-                                  bool italic, bool underlined, bool crossedout,
-                                  color_t active, color_t inactive) {
+                                  color_t inactive) {
   size_t size = CHAR_WIDTH * (COLS - col - 1);
   size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
 
@@ -54,8 +48,7 @@ void screen_shift_characters_left(struct screen *screen, size_t row, size_t col,
     memcpy(screen->buffer + offset + (SCREEN_WIDTH * i),
            screen->buffer + offset + (SCREEN_WIDTH * i) + CHAR_WIDTH, size);
 
-  screen_draw_character(screen, row, COLS - 1, character, font, italic,
-                        underlined, crossedout, active, inactive);
+  screen_clear_cols(screen, row, COLS - 1, COLS, inactive);
 }
 
 void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,

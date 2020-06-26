@@ -180,20 +180,14 @@ static void screen_scroll_callback(enum scroll scroll, size_t from_row,
   screen_scroll(ltdc_get_screen(), scroll, from_row, to_row, rows, inactive);
 }
 
-static void screen_shift_characters_right_callback(
-    size_t row, size_t col, uint8_t character, enum font font, bool italic,
-    bool underlined, bool crossedout, color_t active, color_t inactive) {
-  screen_shift_characters_right(ltdc_get_screen(), row, col, character, font,
-                                italic, underlined, crossedout, active,
-                                inactive);
+static void screen_shift_characters_right_callback(size_t row, size_t col,
+                                                   color_t inactive) {
+  screen_shift_characters_right(ltdc_get_screen(), row, col, inactive);
 }
 
-static void screen_shift_characters_left_callback(
-    size_t row, size_t col, uint8_t character, enum font font, bool italic,
-    bool underlined, bool crossedout, color_t active, color_t inactive) {
-  screen_shift_characters_left(ltdc_get_screen(), row, col, character, font,
-                               italic, underlined, crossedout, active,
-                               inactive);
+static void screen_shift_characters_left_callback(size_t row, size_t col,
+                                                  color_t inactive) {
+  screen_shift_characters_left(ltdc_get_screen(), row, col, inactive);
 }
 
 struct terminal terminal;

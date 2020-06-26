@@ -548,7 +548,7 @@ static void receive_ich(struct terminal *terminal, character_t character) {
   if (!cols)
     cols = 1;
 
-  terminal_screen_shift_insert(terminal, cols);
+  terminal_screen_insert(terminal, cols);
   clear_receive_table(terminal);
 }
 
@@ -557,7 +557,7 @@ static void receive_dch(struct terminal *terminal, character_t character) {
   if (!cols)
     cols = 1;
 
-  terminal_screen_shift_delete(terminal, cols);
+  terminal_screen_delete(terminal, cols);
   clear_receive_table(terminal);
 }
 
@@ -567,6 +567,26 @@ static void receive_ech(struct terminal *terminal, character_t character) {
     cols = 1;
 
   terminal_screen_erase(terminal, cols);
+  clear_receive_table(terminal);
+}
+
+static void receive_il(struct terminal *terminal, character_t character) {
+  int16_t rows = get_csi_param(terminal, 0);
+  if (!rows)
+    rows = 1;
+
+  terminal_screen_scroll(terminal, SCROLL_DOWN, terminal->vs.cursor_row, ROWS,
+                         rows);
+  clear_receive_table(terminal);
+}
+
+static void receive_dl(struct terminal *terminal, character_t character) {
+  int16_t rows = get_csi_param(terminal, 0);
+  if (!rows)
+    rows = 1;
+
+  terminal_screen_scroll(terminal, SCROLL_UP, terminal->vs.cursor_row, ROWS,
+                         rows);
   clear_receive_table(terminal);
 }
 
@@ -833,6 +853,8 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER('H', receive_cup),
     RECEIVE_HANDLER('J', receive_ed),
     RECEIVE_HANDLER('K', receive_el),
+    RECEIVE_HANDLER('L', receive_il),
+    RECEIVE_HANDLER('M', receive_dl),
     RECEIVE_HANDLER('P', receive_dch),
     RECEIVE_HANDLER('S', receive_su),
     RECEIVE_HANDLER('T', receive_sd),

@@ -52,9 +52,9 @@ void terminal_screen_save_visual_state(struct terminal *terminal);
 
 void terminal_screen_restore_visual_state(struct terminal *terminal);
 
-void terminal_screen_shift_delete(struct terminal *terminal, size_t cols);
+void terminal_screen_delete(struct terminal *terminal, size_t cols);
 
-void terminal_screen_shift_insert(struct terminal *terminal, size_t cols);
+void terminal_screen_insert(struct terminal *terminal, size_t cols);
 
 void terminal_screen_erase(struct terminal *terminal, size_t cols);
 

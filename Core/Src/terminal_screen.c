@@ -118,31 +118,30 @@ void terminal_screen_put_character(struct terminal *terminal,
     terminal->vs.cursor_col++;
 }
 
-void terminal_screen_shift_insert(struct terminal *terminal, size_t cols) {
+void terminal_screen_insert(struct terminal *terminal, size_t cols) {
   clear_cursor(terminal);
 
   while (cols--)
-    terminal->callbacks->screen_shift_characters_right(
-        terminal->vs.cursor_row, terminal->vs.cursor_col, ' ', FONT_NORMAL,
-        false, false, false, DEFAULT_ACTIVE_COLOR, DEFAULT_INACTIVE_COLOR);
+    terminal->callbacks->screen_shift_characters_right(terminal->vs.cursor_row,
+                                                       terminal->vs.cursor_col,
+                                                       DEFAULT_INACTIVE_COLOR);
 }
 
-void terminal_screen_shift_delete(struct terminal *terminal, size_t cols) {
+void terminal_screen_delete(struct terminal *terminal, size_t cols) {
   clear_cursor(terminal);
 
   while (cols--)
-    terminal->callbacks->screen_shift_characters_left(
-        terminal->vs.cursor_row, terminal->vs.cursor_col, ' ', FONT_NORMAL,
-        false, false, false, DEFAULT_ACTIVE_COLOR, DEFAULT_INACTIVE_COLOR);
+    terminal->callbacks->screen_shift_characters_left(terminal->vs.cursor_row,
+                                                      terminal->vs.cursor_col,
+                                                      DEFAULT_INACTIVE_COLOR);
 }
 
 void terminal_screen_erase(struct terminal *terminal, size_t cols) {
   clear_cursor(terminal);
 
-  for (size_t i = 0; i < cols; ++i)
-    terminal->callbacks->screen_draw_character(
-        terminal->vs.cursor_row, terminal->vs.cursor_col + i, ' ', FONT_NORMAL,
-        false, false, false, DEFAULT_ACTIVE_COLOR, DEFAULT_INACTIVE_COLOR);
+  terminal->callbacks->screen_clear_cols(
+      terminal->vs.cursor_row, terminal->vs.cursor_col,
+      terminal->vs.cursor_col + cols, DEFAULT_INACTIVE_COLOR);
 }
 
 void terminal_screen_enable_cursor(struct terminal *terminal, bool enable) {
