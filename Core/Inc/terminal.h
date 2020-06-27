@@ -96,15 +96,20 @@ struct terminal {
   bool cursor_key_mode; // TODO
   bool keyboard_action_mode;
   bool auto_repeat_mode;
+  bool send_receive_mode; // TODO
 
   bool auto_wrap_mode;
   bool scrolling_mode; // TODO
-  bool column_mode; // TODO
-  bool screen_mode; // TODO
-  bool origin_mode; // TODO
+  bool column_mode;    // TODO
+  bool screen_mode;    // TODO
+  bool origin_mode;
+  bool insert_mode;
 
   struct visual_state vs;
   struct visual_state saved_vs;
+
+  int16_t margin_top;
+  int16_t margin_bottom;
 
   volatile uint16_t cursor_counter;
   volatile bool cursor_on;

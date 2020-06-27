@@ -19,8 +19,8 @@ static void clear_cursor(struct terminal *terminal) {
   }
 }
 
-void terminal_screen_move_cursor(struct terminal *terminal, int16_t row,
-                                 int16_t col) {
+void terminal_screen_move_cursor_absolute(struct terminal *terminal,
+                                          int16_t row, int16_t col) {
   clear_cursor(terminal);
 
   terminal->vs.cursor_col = col;
@@ -38,6 +38,26 @@ void terminal_screen_move_cursor(struct terminal *terminal, int16_t row,
 
   if (terminal->vs.cursor_row >= ROWS)
     terminal->vs.cursor_row = ROWS - 1;
+}
+
+bool terminal_screen_inside_margins(struct terminal *terminal) {
+  return (terminal->vs.cursor_row >= terminal->margin_top &&
+          terminal->vs.cursor_row < terminal->margin_bottom);
+}
+
+void terminal_screen_move_cursor(struct terminal *terminal, int16_t rows,
+                                 int16_t cols) {
+  int16_t row = terminal->vs.cursor_row + rows;
+  int16_t col = terminal->vs.cursor_col + cols;
+
+  if (terminal_screen_inside_margins(terminal)) {
+    if (row < terminal->margin_top)
+      row = terminal->margin_top;
+    else if (row >= terminal->margin_bottom)
+      row = terminal->margin_bottom - 1;
+  }
+
+  terminal_screen_move_cursor_absolute(terminal, row, col);
 }
 
 void terminal_screen_carriage_return(struct terminal *terminal) {
@@ -71,24 +91,34 @@ void terminal_screen_clear_cols(struct terminal *terminal, size_t row,
 void terminal_screen_line_feed(struct terminal *terminal, int16_t rows) {
   clear_cursor(terminal);
 
-  if (terminal->vs.cursor_row >= ROWS - rows) {
-    terminal_screen_scroll(terminal, SCROLL_UP, 0, ROWS,
-                           rows - (ROWS - 1 - terminal->vs.cursor_row));
-    terminal->vs.cursor_row = ROWS - 1;
+  if (terminal_screen_inside_margins(terminal)) {
+    if (terminal->vs.cursor_row + rows >= terminal->margin_bottom) {
+      terminal_screen_scroll(
+          terminal, SCROLL_UP, terminal->margin_top, terminal->margin_bottom,
+          rows - (terminal->margin_bottom - 1 - terminal->vs.cursor_row));
+      terminal->vs.cursor_row = terminal->margin_bottom - 1;
+    } else
+      terminal->vs.cursor_row += rows;
   } else
-    terminal->vs.cursor_row += rows;
+    terminal_screen_move_cursor_absolute(
+        terminal, terminal->vs.cursor_row + rows, terminal->vs.cursor_col);
 }
 
 void terminal_screen_reverse_line_feed(struct terminal *terminal,
                                        int16_t rows) {
   clear_cursor(terminal);
 
-  if (terminal->vs.cursor_row < rows) {
-    terminal_screen_scroll(terminal, SCROLL_DOWN, 0, ROWS,
-                           rows - terminal->vs.cursor_row);
-    terminal->vs.cursor_row = 0;
+  if (terminal_screen_inside_margins(terminal)) {
+    if (terminal->vs.cursor_row - rows < terminal->margin_top) {
+      terminal_screen_scroll(
+          terminal, SCROLL_DOWN, terminal->margin_top, terminal->margin_bottom,
+          rows - (terminal->vs.cursor_row - terminal->margin_top));
+      terminal->vs.cursor_row = terminal->margin_top;
+    } else
+      terminal->vs.cursor_row -= rows;
   } else
-    terminal->vs.cursor_row -= rows;
+    terminal_screen_move_cursor_absolute(
+        terminal, terminal->vs.cursor_row - rows, terminal->vs.cursor_col);
 }
 
 void terminal_screen_put_character(struct terminal *terminal,
@@ -104,6 +134,9 @@ void terminal_screen_put_character(struct terminal *terminal,
                                          : terminal->vs.active_color;
   color_t inactive = terminal->vs.negative ? terminal->vs.active_color
                                            : terminal->vs.inactive_color;
+
+  if (terminal->insert_mode)
+    terminal_screen_insert(terminal, 1);
 
   if (!terminal->vs.concealed)
     terminal->callbacks->screen_draw_character(
@@ -199,6 +232,7 @@ void terminal_screen_init(struct terminal *terminal) {
   terminal->column_mode = false;
   terminal->screen_mode = false;
   terminal->origin_mode = false;
+  terminal->insert_mode = false;
 
   terminal->vs.cursor_row = 0;
   terminal->vs.cursor_col = 0;
@@ -213,6 +247,9 @@ void terminal_screen_init(struct terminal *terminal) {
   terminal->vs.crossedout = false;
   terminal->vs.active_color = DEFAULT_ACTIVE_COLOR;
   terminal->vs.inactive_color = DEFAULT_INACTIVE_COLOR;
+
+  terminal->margin_top = 0;
+  terminal->margin_bottom = ROWS;
 
   terminal->cursor_counter = CURSOR_ON_COUNTER;
   terminal->cursor_on = true;

@@ -37,8 +37,7 @@ static void receive_lf(struct terminal *terminal, character_t character) {
 }
 
 static void receive_bs(struct terminal *terminal, character_t character) {
-  terminal_screen_move_cursor(terminal, terminal->vs.cursor_row,
-                              terminal->vs.cursor_col - 1);
+  terminal_screen_move_cursor(terminal, 0, -1);
 }
 
 static void receive_nel(struct terminal *terminal, character_t character) {
@@ -156,21 +155,23 @@ static void receive_hvp(struct terminal *terminal, character_t character) {
   int16_t row = get_csi_param(terminal, 0);
   int16_t col = get_csi_param(terminal, 1);
 
-  terminal_screen_move_cursor(terminal, row - 1, col - 1);
+  terminal_screen_move_cursor_absolute(terminal, row - 1, col - 1);
   clear_receive_table(terminal);
 }
 
 static void receive_hpa(struct terminal *terminal, character_t character) {
   int16_t col = get_csi_param(terminal, 0);
 
-  terminal_screen_move_cursor(terminal, terminal->vs.cursor_row, col - 1);
+  terminal_screen_move_cursor_absolute(terminal, terminal->vs.cursor_row,
+                                       col - 1);
   clear_receive_table(terminal);
 }
 
 static void receive_vpa(struct terminal *terminal, character_t character) {
   int16_t row = get_csi_param(terminal, 0);
 
-  terminal_screen_move_cursor(terminal, row - 1, terminal->vs.cursor_col);
+  terminal_screen_move_cursor_absolute(terminal, row - 1,
+                                       terminal->vs.cursor_col);
   clear_receive_table(terminal);
 }
 
@@ -180,6 +181,14 @@ static void receive_sm(struct terminal *terminal, character_t character) {
   switch (mode) {
   case 2: // KAM
     terminal->keyboard_action_mode = true;
+    break;
+
+  case 4: // IRM
+    terminal->insert_mode = true;
+    break;
+
+  case 12: // SRM
+    terminal->send_receive_mode = true;
     break;
 
   case 20: // LNM
@@ -199,6 +208,14 @@ static void receive_rm(struct terminal *terminal, character_t character) {
   switch (mode) {
   case 2: // KAM
     terminal->keyboard_action_mode = false;
+    break;
+
+  case 4: // IRM
+    terminal->insert_mode = false;
+    break;
+
+  case 12: // SRM
+    terminal->send_receive_mode = false;
     break;
 
   case 20: // LNM
@@ -241,7 +258,7 @@ static void receive_cup(struct terminal *terminal, character_t character) {
   int16_t row = get_csi_param(terminal, 0);
   int16_t col = get_csi_param(terminal, 1);
 
-  terminal_screen_move_cursor(terminal, row - 1, col - 1);
+  terminal_screen_move_cursor_absolute(terminal, row - 1, col - 1);
   clear_receive_table(terminal);
 }
 
@@ -395,8 +412,7 @@ static void receive_cuu(struct terminal *terminal, character_t character) {
   if (!rows)
     rows = 1;
 
-  terminal_screen_move_cursor(terminal, terminal->vs.cursor_row - rows,
-                              terminal->vs.cursor_col);
+  terminal_screen_move_cursor(terminal, -rows, 0);
   clear_receive_table(terminal);
 }
 
@@ -405,8 +421,7 @@ static void receive_cud(struct terminal *terminal, character_t character) {
   if (!rows)
     rows = 1;
 
-  terminal_screen_move_cursor(terminal, terminal->vs.cursor_row + rows,
-                              terminal->vs.cursor_col);
+  terminal_screen_move_cursor(terminal, rows, 0);
   clear_receive_table(terminal);
 }
 
@@ -415,8 +430,7 @@ static void receive_cuf(struct terminal *terminal, character_t character) {
   if (!cols)
     cols = 1;
 
-  terminal_screen_move_cursor(terminal, terminal->vs.cursor_row,
-                              terminal->vs.cursor_col + cols);
+  terminal_screen_move_cursor(terminal, 0, cols);
   clear_receive_table(terminal);
 }
 
@@ -425,8 +439,7 @@ static void receive_cub(struct terminal *terminal, character_t character) {
   if (!cols)
     cols = 1;
 
-  terminal_screen_move_cursor(terminal, terminal->vs.cursor_row,
-                              terminal->vs.cursor_col - cols);
+  terminal_screen_move_cursor(terminal, 0, -cols);
   clear_receive_table(terminal);
 }
 
@@ -453,7 +466,8 @@ static void receive_cpl(struct terminal *terminal, character_t character) {
 static void receive_cha(struct terminal *terminal, character_t character) {
   int16_t col = get_csi_param(terminal, 0);
 
-  terminal_screen_move_cursor(terminal, terminal->vs.cursor_row, col - 1);
+  terminal_screen_move_cursor_absolute(terminal, terminal->vs.cursor_row,
+                                       col - 1);
   clear_receive_table(terminal);
 }
 
@@ -575,8 +589,9 @@ static void receive_il(struct terminal *terminal, character_t character) {
   if (!rows)
     rows = 1;
 
-  terminal_screen_scroll(terminal, SCROLL_DOWN, terminal->vs.cursor_row, ROWS,
-                         rows);
+  if (terminal_screen_inside_margins(terminal))
+    terminal_screen_scroll(terminal, SCROLL_DOWN, terminal->vs.cursor_row,
+                           terminal->margin_bottom, rows);
   clear_receive_table(terminal);
 }
 
@@ -585,19 +600,43 @@ static void receive_dl(struct terminal *terminal, character_t character) {
   if (!rows)
     rows = 1;
 
-  terminal_screen_scroll(terminal, SCROLL_UP, terminal->vs.cursor_row, ROWS,
-                         rows);
+  if (terminal_screen_inside_margins(terminal))
+    terminal_screen_scroll(terminal, SCROLL_UP, terminal->vs.cursor_row,
+                           terminal->margin_bottom, rows);
+  clear_receive_table(terminal);
+}
+
+static void receive_decstbm(struct terminal *terminal, character_t character) {
+  int16_t top = get_csi_param(terminal, 0);
+  int16_t bottom = get_csi_param(terminal, 1);
+
+  if (top)
+    top--;
+
+  if (!bottom)
+    bottom = ROWS;
+
+  if (top >= 0 && bottom > top && bottom <= ROWS) {
+    terminal->margin_top = top;
+    terminal->margin_bottom = bottom;
+
+    if (terminal->origin_mode)
+      terminal_screen_move_cursor_absolute(terminal, terminal->margin_top, 0);
+    else
+      terminal_screen_move_cursor_absolute(terminal, 0, 0);
+  }
+
   clear_receive_table(terminal);
 }
 
 static void receive_decaln(struct terminal *terminal, character_t character) {
   for (size_t row = 0; row < ROWS; ++row)
     for (size_t col = 0; col < COLS; ++col) {
-      terminal_screen_move_cursor(terminal, row, col);
+      terminal_screen_move_cursor_absolute(terminal, row, col);
       terminal_screen_put_character(terminal, 'E');
     }
 
-  terminal_screen_move_cursor(terminal, 0, 0);
+  terminal_screen_move_cursor_absolute(terminal, 0, 0);
   clear_receive_table(terminal);
 }
 
@@ -622,6 +661,8 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
 
   case 3: // DECCOLM
     terminal->column_mode = true;
+    terminal_screen_clear_rows(terminal, 0, ROWS);
+    terminal_screen_move_cursor_absolute(terminal, 0, 0);
     break;
 
   case 4: // DECSCKL
@@ -633,7 +674,8 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
     break;
 
   case 6: // DECCOM
-    terminal->origin_mode = false;
+    terminal->origin_mode = true;
+    terminal_screen_move_cursor_absolute(terminal, terminal->margin_top, 0);
     break;
 
   case 7: // DECAWM
@@ -672,6 +714,8 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
 
   case 3: // DECCOLM
     terminal->column_mode = false;
+    terminal_screen_clear_rows(terminal, 0, ROWS);
+    terminal_screen_move_cursor_absolute(terminal, 0, 0);
     break;
 
   case 4: // DECSCKL
@@ -684,6 +728,7 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
 
   case 6: // DECCOM
     terminal->origin_mode = false;
+    terminal_screen_move_cursor_absolute(terminal, 0, 0);
     break;
 
   case 7: // DECAWM
@@ -842,6 +887,7 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER('l', receive_rm),
     RECEIVE_HANDLER('m', receive_sgr),
     RECEIVE_HANDLER('n', receive_dsr),
+    RECEIVE_HANDLER('r', receive_decstbm),
     RECEIVE_HANDLER('y', receive_dectst),
     RECEIVE_HANDLER('A', receive_cuu),
     RECEIVE_HANDLER('B', receive_cud),

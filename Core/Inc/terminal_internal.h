@@ -23,10 +23,15 @@ void terminal_update_keyboard_leds(struct terminal *terminal);
 
 void terminal_screen_init(struct terminal *terminal);
 
+bool terminal_screen_inside_margins(struct terminal *terminal);
+
 void terminal_screen_update_cursor_counter(struct terminal *terminal);
 
-void terminal_screen_move_cursor(struct terminal *terminal, int16_t row,
-                                 int16_t col);
+void terminal_screen_move_cursor_absolute(struct terminal *terminal,
+                                          int16_t row, int16_t col);
+
+void terminal_screen_move_cursor(struct terminal *terminal, int16_t rows,
+                                 int16_t cols);
 
 void terminal_screen_carriage_return(struct terminal *terminal);
 
