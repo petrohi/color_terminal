@@ -20,12 +20,32 @@ static const receive_table_t default_receive_table;
 
 static void clear_receive_table(struct terminal *terminal) {
   terminal->receive_table = &default_receive_table;
+
+#ifdef DEBUG
+  if (terminal->unhandled)
+    printf("*%s\r\n", terminal->debug_buffer);
+  else
+    printf("%s\r\n", terminal->debug_buffer);
+#endif
 }
 
 static const receive_table_t esc_receive_table;
 
 static void receive_esc(struct terminal *terminal, character_t character) {
+  if (terminal->receive_table != &default_receive_table) {
+#ifdef DEBUG
+    terminal->unhandled = true;
+#endif
+    clear_receive_table(terminal);
+  }
+
   terminal->receive_table = &esc_receive_table;
+
+#ifdef DEBUG
+  memset(terminal->debug_buffer, 0, DEBUG_BUFFER_LENGTH);
+  terminal->debug_buffer_length = 0;
+  terminal->unhandled = false;
+#endif
 }
 
 static void receive_cr(struct terminal *terminal, character_t character) {
@@ -33,7 +53,19 @@ static void receive_cr(struct terminal *terminal, character_t character) {
 }
 
 static void receive_lf(struct terminal *terminal, character_t character) {
-  terminal_screen_line_feed(terminal, 1);
+  if (terminal->new_line_mode)
+    terminal_screen_carriage_return(terminal);
+
+  terminal_screen_index(terminal, 1);
+}
+
+static void receive_tab(struct terminal *terminal, character_t character) {
+  int16_t col = terminal_screen_cursor_col(terminal);
+
+  while (col < COLS - 1 && !terminal->tab_stops[++col])
+    ;
+  terminal_screen_move_cursor_absolute(
+      terminal, terminal_screen_cursor_row(terminal), col);
 }
 
 static void receive_bs(struct terminal *terminal, character_t character) {
@@ -42,17 +74,22 @@ static void receive_bs(struct terminal *terminal, character_t character) {
 
 static void receive_nel(struct terminal *terminal, character_t character) {
   terminal_screen_carriage_return(terminal);
-  terminal_screen_line_feed(terminal, 1);
+  terminal_screen_index(terminal, 1);
   clear_receive_table(terminal);
 }
 
 static void receive_ind(struct terminal *terminal, character_t character) {
-  terminal_screen_line_feed(terminal, 1);
+  terminal_screen_index(terminal, 1);
+  clear_receive_table(terminal);
+}
+
+static void receive_hts(struct terminal *terminal, character_t character) {
+  terminal->tab_stops[terminal_screen_cursor_col(terminal)] = true;
   clear_receive_table(terminal);
 }
 
 static void receive_ri(struct terminal *terminal, character_t character) {
-  terminal_screen_reverse_line_feed(terminal, 1);
+  terminal_screen_reverse_index(terminal, 1);
   clear_receive_table(terminal);
 }
 
@@ -159,11 +196,26 @@ static void receive_hvp(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static void receive_tbc(struct terminal *terminal, character_t character) {
+  int16_t mode = get_csi_param(terminal, 0);
+
+  if (mode == 0)
+    terminal->tab_stops[terminal_screen_cursor_col(terminal)] = false;
+  else if (mode == 3)
+    memset(terminal->tab_stops, 0, COLS);
+#ifdef DEBUG
+  else
+    terminal->unhandled = true;
+#endif
+
+  clear_receive_table(terminal);
+}
+
 static void receive_hpa(struct terminal *terminal, character_t character) {
   int16_t col = get_csi_param(terminal, 0);
 
-  terminal_screen_move_cursor_absolute(terminal, terminal->vs.cursor_row,
-                                       col - 1);
+  terminal_screen_move_cursor_absolute(
+      terminal, terminal_screen_cursor_row(terminal), col - 1);
   clear_receive_table(terminal);
 }
 
@@ -171,7 +223,7 @@ static void receive_vpa(struct terminal *terminal, character_t character) {
   int16_t row = get_csi_param(terminal, 0);
 
   terminal_screen_move_cursor_absolute(terminal, row - 1,
-                                       terminal->vs.cursor_col);
+                                       terminal_screen_cursor_col(terminal));
   clear_receive_table(terminal);
 }
 
@@ -195,9 +247,11 @@ static void receive_sm(struct terminal *terminal, character_t character) {
     terminal->new_line_mode = true;
     break;
 
+#ifdef DEBUG
   default:
-    printf("CSI %d h\r\n", mode);
+    terminal->unhandled = true;
     break;
+#endif
   }
   clear_receive_table(terminal);
 }
@@ -222,9 +276,11 @@ static void receive_rm(struct terminal *terminal, character_t character) {
     terminal->new_line_mode = false;
     break;
 
+#ifdef DEBUG
   default:
-    printf("CSI %d l\r\n", mode);
+    terminal->unhandled = true;
     break;
+#endif
   }
   clear_receive_table(terminal);
 }
@@ -239,12 +295,15 @@ static void receive_dsr(struct terminal *terminal, character_t character) {
 
   case 6:
     terminal_uart_transmit_printf(terminal, "\33[%d;%dR",
-                                  terminal->vs.cursor_row + 1,
-                                  terminal->vs.cursor_col + 1);
+                                  terminal_screen_cursor_row(terminal) + 1,
+                                  terminal_screen_cursor_col(terminal) + 1);
     break;
+
+#ifdef DEBUG
   default:
-    printf("DSR %d\r\n", code);
+    terminal->unhandled = true;
     break;
+#endif
   }
 
   clear_receive_table(terminal);
@@ -268,12 +327,14 @@ static color_t get_sgr_color(struct terminal *terminal, size_t *i) {
   if (code == 5) {
     return get_csi_param(terminal, (*i)++);
   } else if (code == 2) {
-    uint8_t r = get_csi_param(terminal, (*i)++);
-    uint8_t g = get_csi_param(terminal, (*i)++);
-    uint8_t b = get_csi_param(terminal, (*i)++);
+    get_csi_param(terminal, (*i)++);
+    get_csi_param(terminal, (*i)++);
+    get_csi_param(terminal, (*i)++);
 
-    printf("SGR <color>;2;%d;%d;%d\r\n", r, g, b);
     // TODO: get the closest color from CLUT
+#ifdef DEBUG
+    terminal->unhandled = true;
+#endif
   }
   return DEFAULT_ACTIVE_COLOR;
 }
@@ -391,8 +452,10 @@ static void handle_sgr(struct terminal *terminal, size_t *i) {
       terminal->vs.active_color = code - 90 + 8;
     else if (code >= 100 && code < 108)
       terminal->vs.inactive_color = code - 100 + 8;
+#ifdef DEBUG
     else
-      printf("SGR %d\r\n", code);
+      terminal->unhandled = true;
+#endif
   }
 }
 
@@ -449,7 +512,7 @@ static void receive_cnl(struct terminal *terminal, character_t character) {
     rows = 1;
 
   terminal_screen_carriage_return(terminal);
-  terminal_screen_line_feed(terminal, rows);
+  terminal_screen_index(terminal, rows);
   clear_receive_table(terminal);
 }
 
@@ -459,15 +522,15 @@ static void receive_cpl(struct terminal *terminal, character_t character) {
     rows = 1;
 
   terminal_screen_carriage_return(terminal);
-  terminal_screen_reverse_line_feed(terminal, rows);
+  terminal_screen_reverse_index(terminal, rows);
   clear_receive_table(terminal);
 }
 
 static void receive_cha(struct terminal *terminal, character_t character) {
   int16_t col = get_csi_param(terminal, 0);
 
-  terminal_screen_move_cursor_absolute(terminal, terminal->vs.cursor_row,
-                                       col - 1);
+  terminal_screen_move_cursor_absolute(
+      terminal, terminal_screen_cursor_row(terminal), col - 1);
   clear_receive_table(terminal);
 }
 
@@ -476,7 +539,7 @@ static void receive_sd(struct terminal *terminal, character_t character) {
   if (!rows)
     rows = 1;
 
-  terminal_screen_scroll(terminal, SCROLL_DOWN, 0, ROWS, rows);
+  terminal_screen_scroll(terminal, SCROLL_DOWN, 0, rows);
   clear_receive_table(terminal);
 }
 
@@ -485,7 +548,7 @@ static void receive_su(struct terminal *terminal, character_t character) {
   if (!rows)
     rows = 1;
 
-  terminal_screen_scroll(terminal, SCROLL_UP, 0, ROWS, rows);
+  terminal_screen_scroll(terminal, SCROLL_UP, 0, rows);
   clear_receive_table(terminal);
 }
 
@@ -494,34 +557,28 @@ static void receive_ed(struct terminal *terminal, character_t character) {
 
   switch (code) {
   case 0:
-    if (terminal->vs.cursor_col != COLS - 1)
-      terminal_screen_clear_cols(terminal, terminal->vs.cursor_row,
-                                 terminal->vs.cursor_col, COLS);
-
-    if (terminal->vs.cursor_row != ROWS - 1)
-      terminal_screen_clear_rows(terminal, terminal->vs.cursor_row + 1, ROWS);
+    terminal_screen_clear_to_right(terminal);
+    terminal_screen_clear_to_bottom(terminal);
 
     break;
 
   case 1:
-    if (terminal->vs.cursor_col)
-      terminal_screen_clear_cols(terminal, terminal->vs.cursor_row, 0,
-                                 terminal->vs.cursor_col + 1);
-
-    if (terminal->vs.cursor_row)
-      terminal_screen_clear_rows(terminal, 0, terminal->vs.cursor_row);
+    terminal_screen_clear_to_left(terminal);
+    terminal_screen_clear_to_top(terminal);
 
     break;
 
   case 2:
   case 3:
-    terminal_screen_clear_rows(terminal, 0, ROWS);
+    terminal_screen_clear_all(terminal);
 
     break;
 
+#ifdef DEBUG
   default:
-    printf("ED %d\r\n", code);
+    terminal->unhandled = true;
     break;
+#endif
   }
 
   clear_receive_table(terminal);
@@ -532,26 +589,23 @@ static void receive_el(struct terminal *terminal, character_t character) {
 
   switch (code) {
   case 0:
-    if (terminal->vs.cursor_col != COLS - 1)
-      terminal_screen_clear_cols(terminal, terminal->vs.cursor_row,
-                                 terminal->vs.cursor_col, COLS);
+    terminal_screen_clear_to_right(terminal);
     break;
 
   case 1:
-    if (terminal->vs.cursor_col)
-      terminal_screen_clear_cols(terminal, terminal->vs.cursor_row, 0,
-                                 terminal->vs.cursor_col + 1);
-
+    terminal_screen_clear_to_left(terminal);
     break;
 
   case 2:
-    terminal_screen_clear_cols(terminal, terminal->vs.cursor_row, 0, COLS);
+    terminal_screen_clear_row(terminal);
 
     break;
 
+#ifdef DEBUG
   default:
-    printf("EL %d\r\n", code);
+    terminal->unhandled = true;
     break;
+#endif
   }
 
   clear_receive_table(terminal);
@@ -589,9 +643,8 @@ static void receive_il(struct terminal *terminal, character_t character) {
   if (!rows)
     rows = 1;
 
-  if (terminal_screen_inside_margins(terminal))
-    terminal_screen_scroll(terminal, SCROLL_DOWN, terminal->vs.cursor_row,
-                           terminal->margin_bottom, rows);
+  terminal_screen_scroll(terminal, SCROLL_DOWN,
+                         terminal_screen_cursor_row(terminal), rows);
   clear_receive_table(terminal);
 }
 
@@ -600,9 +653,8 @@ static void receive_dl(struct terminal *terminal, character_t character) {
   if (!rows)
     rows = 1;
 
-  if (terminal_screen_inside_margins(terminal))
-    terminal_screen_scroll(terminal, SCROLL_UP, terminal->vs.cursor_row,
-                           terminal->margin_bottom, rows);
+  terminal_screen_scroll(terminal, SCROLL_UP,
+                         terminal_screen_cursor_row(terminal), rows);
   clear_receive_table(terminal);
 }
 
@@ -616,7 +668,7 @@ static void receive_decstbm(struct terminal *terminal, character_t character) {
   if (!bottom)
     bottom = ROWS;
 
-  if (top >= 0 && bottom > top && bottom <= ROWS) {
+  if (top >= 0 && bottom >= top && bottom <= ROWS) {
     terminal->margin_top = top;
     terminal->margin_bottom = bottom;
 
@@ -661,7 +713,7 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
 
   case 3: // DECCOLM
     terminal->column_mode = true;
-    terminal_screen_clear_rows(terminal, 0, ROWS);
+    terminal_screen_clear_all(terminal);
     terminal_screen_move_cursor_absolute(terminal, 0, 0);
     break;
 
@@ -693,9 +745,11 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
     terminal_screen_enable_cursor(terminal, true);
     break;
 
+#ifdef DEBUG
   default:
-    printf("CSI ? %d h\r\n", mode);
+    terminal->unhandled = true;
     break;
+#endif
   }
   clear_receive_table(terminal);
 }
@@ -714,7 +768,7 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
 
   case 3: // DECCOLM
     terminal->column_mode = false;
-    terminal_screen_clear_rows(terminal, 0, ROWS);
+    terminal_screen_clear_all(terminal);
     terminal_screen_move_cursor_absolute(terminal, 0, 0);
     break;
 
@@ -746,9 +800,11 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
     terminal_screen_enable_cursor(terminal, false);
     break;
 
+#ifdef DEBUG
   default:
-    printf("CSI ? %d l\r\n", mode);
+    terminal->unhandled = true;
     break;
+#endif
   }
   clear_receive_table(terminal);
 }
@@ -773,19 +829,9 @@ static void receive_ignore(struct terminal *terminal, character_t character) {}
 
 static void receive_unexpected(struct terminal *terminal,
                                character_t character) {
-  if (terminal->receive_table == &esc_receive_table)
-    printf("ESC %c\r\n", character);
-  else if (terminal->receive_table == &esc_hash_receive_table)
-    printf("ESC # %c\r\n", character);
-  else if (terminal->receive_table == &si_receive_table)
-    printf("ESC ( %c\r\n", character);
-  else if (terminal->receive_table == &so_receive_table)
-    printf("ESC ) %c\r\n", character);
-  else if (terminal->receive_table == &csi_receive_table)
-    printf("CSI %c\r\n", character);
-  else if (terminal->receive_table == &csi_decmod_receive_table)
-    printf("CSI ? %c\r\n", character);
-
+#ifdef DEBUG
+  terminal->unhandled = true;
+#endif
   clear_receive_table(terminal);
 }
 
@@ -797,6 +843,22 @@ static void receive_character(struct terminal *terminal,
     receive = (*terminal->receive_table)[DEFAULT_RECEIVE];
   }
 
+#ifdef DEBUG
+  // Keep zero for the end of the string for printf
+  if (terminal->receive_table != &default_receive_table &&
+      terminal->debug_buffer_length < DEBUG_BUFFER_LENGTH - 1) {
+    if (character < 0x20 || (character >= 0x7f && character <= 0xa0))
+      terminal->debug_buffer_length += snprintf(
+          (char *)terminal->debug_buffer + terminal->debug_buffer_length,
+          DEBUG_BUFFER_LENGTH - terminal->debug_buffer_length - 1, "\\x%x",
+          character);
+    else
+      terminal->debug_buffer_length += snprintf(
+          (char *)terminal->debug_buffer + terminal->debug_buffer_length,
+          DEBUG_BUFFER_LENGTH - terminal->debug_buffer_length - 1, "%c",
+          character);
+  }
+#endif
   receive(terminal, character);
 }
 
@@ -813,7 +875,7 @@ static void receive_character(struct terminal *terminal,
       RECEIVE_HANDLER('\x06', receive_ignore),                                 \
       RECEIVE_HANDLER('\x07', receive_ignore),                                 \
       RECEIVE_HANDLER('\x08', receive_bs),                                     \
-      RECEIVE_HANDLER('\x09', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x09', receive_tab),                                    \
       RECEIVE_HANDLER('\x0a', receive_lf),                                     \
       RECEIVE_HANDLER('\x0b', receive_lf),                                     \
       RECEIVE_HANDLER('\x0c', receive_lf),                                     \
@@ -853,6 +915,7 @@ static const receive_table_t esc_receive_table = {
     RECEIVE_HANDLER('c', receive_ris),
     RECEIVE_HANDLER('E', receive_nel),
     RECEIVE_HANDLER('D', receive_ind),
+    RECEIVE_HANDLER('H', receive_hts),
     RECEIVE_HANDLER('M', receive_ri),
     RECEIVE_HANDLER('7', receive_decsc),
     RECEIVE_HANDLER('8', receive_decrc),
@@ -883,6 +946,7 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER('c', receive_da),
     RECEIVE_HANDLER('d', receive_vpa),
     RECEIVE_HANDLER('f', receive_hvp),
+    RECEIVE_HANDLER('g', receive_tbc),
     RECEIVE_HANDLER('h', receive_sm),
     RECEIVE_HANDLER('l', receive_rm),
     RECEIVE_HANDLER('m', receive_sgr),
@@ -943,7 +1007,6 @@ static const receive_table_t so_receive_table = {
 };
 
 static const receive_table_t osc_receive_table = {
-    DEFAULT_RECEIVE_TABLE,
     DEFAULT_RECEIVE_HANDLER(receive_osc_data),
 };
 
@@ -1008,4 +1071,9 @@ void terminal_uart_init(struct terminal *terminal) {
   terminal->uart_receive_count = RECEIVE_BUFFER_SIZE;
   terminal->callbacks->uart_receive(terminal->receive_buffer,
                                     sizeof(terminal->receive_buffer));
+#ifdef DEBUG
+  memset(terminal->debug_buffer, 0, DEBUG_BUFFER_LENGTH);
+  terminal->debug_buffer_length = 0;
+  terminal->unhandled = false;
+#endif
 }

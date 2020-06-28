@@ -50,8 +50,8 @@ struct terminal_callbacks {
   void (*system_reset)();
 };
 
-#define TRANSMIT_BUFFER_SIZE 256
-#define RECEIVE_BUFFER_SIZE 256
+#define TRANSMIT_BUFFER_SIZE 64
+#define RECEIVE_BUFFER_SIZE 64
 
 struct terminal;
 
@@ -111,6 +111,8 @@ struct terminal {
   int16_t margin_top;
   int16_t margin_bottom;
 
+  bool tab_stops[COLS];
+
   volatile uint16_t cursor_counter;
   volatile bool cursor_on;
   bool cursor_inverted;
@@ -125,6 +127,13 @@ struct terminal {
 
   character_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
   character_t receive_buffer[RECEIVE_BUFFER_SIZE];
+
+#ifdef DEBUG
+#define DEBUG_BUFFER_LENGTH 128
+  character_t debug_buffer[DEBUG_BUFFER_LENGTH];
+  uint8_t debug_buffer_length;
+  bool unhandled;
+#endif
 };
 
 void terminal_init(struct terminal *terminal,
