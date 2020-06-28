@@ -53,8 +53,10 @@ void screen_shift_characters_left(struct screen *screen, size_t row, size_t col,
 
 void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
                    size_t to_row, size_t rows, color_t inactive) {
-  if (to_row <= from_row + rows)
+  if (to_row <= from_row + rows) {
+    screen_clear_rows(screen, from_row, to_row, inactive);
     return;
+  }
 
   size_t disp = SCREEN_WIDTH * CHAR_HEIGHT * rows;
   size_t size = SCREEN_WIDTH * CHAR_HEIGHT * (to_row - from_row - rows);
