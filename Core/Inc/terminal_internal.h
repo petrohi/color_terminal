@@ -1,5 +1,4 @@
-#ifndef __TERMINAL_INTERNAL_H__
-#define __TERMINAL_INTERNAL_H__
+#pragma once
 
 #include "terminal.h"
 
@@ -70,6 +69,3 @@ void terminal_screen_delete(struct terminal *terminal, size_t cols);
 void terminal_screen_insert(struct terminal *terminal, size_t cols);
 
 void terminal_screen_erase(struct terminal *terminal, size_t cols);
-
-#endif
-

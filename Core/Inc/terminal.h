@@ -1,5 +1,4 @@
-#ifndef __TERMINAL_H__
-#define __TERMINAL_H__
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -147,5 +146,3 @@ void terminal_uart_receive(struct terminal *terminal, uint32_t count);
 void terminal_timer_tick(struct terminal *terminal);
 void terminal_screen_update_cursor(struct terminal *terminal);
 void terminal_keyboard_repeat_key(struct terminal *terminal);
-
-#endif

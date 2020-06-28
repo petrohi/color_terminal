@@ -184,7 +184,7 @@ static void receive_csi_param_delimiter(struct terminal *terminal,
 }
 
 static void receive_da(struct terminal *terminal, character_t character) {
-  terminal_uart_transmit_string(terminal, "\33[?1;0c");
+  terminal_uart_transmit_string(terminal, "\x1b[?1;0c");
   clear_receive_table(terminal);
 }
 
@@ -290,14 +290,14 @@ static void receive_dsr(struct terminal *terminal, character_t character) {
 
   switch (code) {
   case 5:
-    terminal_uart_transmit_string(terminal, "\33[0n");
+    terminal_uart_transmit_string(terminal, "\x1b[0n");
     break;
 
-  case 6:
-    terminal_uart_transmit_printf(terminal, "\33[%d;%dR",
-                                  terminal_screen_cursor_row(terminal) + 1,
-                                  terminal_screen_cursor_col(terminal) + 1);
-    break;
+  case 6: {
+    int row = terminal_screen_cursor_row(terminal) + 1;
+    int col = terminal_screen_cursor_col(terminal) + 1;
+    terminal_uart_transmit_printf(terminal, "\x1b[%d;%dR", row, col);
+  } break;
 
 #ifdef DEBUG
   default:
@@ -671,11 +671,7 @@ static void receive_decstbm(struct terminal *terminal, character_t character) {
   if (top >= 0 && bottom >= top && bottom <= ROWS) {
     terminal->margin_top = top;
     terminal->margin_bottom = bottom;
-
-    if (terminal->origin_mode)
-      terminal_screen_move_cursor_absolute(terminal, terminal->margin_top, 0);
-    else
-      terminal_screen_move_cursor_absolute(terminal, 0, 0);
+    terminal_screen_move_cursor_absolute(terminal, 0, 0);
   }
 
   clear_receive_table(terminal);
@@ -727,7 +723,7 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
 
   case 6: // DECCOM
     terminal->origin_mode = true;
-    terminal_screen_move_cursor_absolute(terminal, terminal->margin_top, 0);
+    terminal_screen_move_cursor_absolute(terminal, 0, 0);
     break;
 
   case 7: // DECAWM
@@ -847,12 +843,12 @@ static void receive_character(struct terminal *terminal,
   // Keep zero for the end of the string for printf
   if (terminal->receive_table != &default_receive_table &&
       terminal->debug_buffer_length < DEBUG_BUFFER_LENGTH - 1) {
-    if (character < 0x20 || (character >= 0x7f && character <= 0xa0))
+    if (character < 0x20 || (character >= 0x7f && character <= 0xa0)) {
+      int c = character;
       terminal->debug_buffer_length += snprintf(
           (char *)terminal->debug_buffer + terminal->debug_buffer_length,
-          DEBUG_BUFFER_LENGTH - terminal->debug_buffer_length - 1, "\\x%x",
-          character);
-    else
+          DEBUG_BUFFER_LENGTH - terminal->debug_buffer_length - 1, "\\x%x", c);
+    } else
       terminal->debug_buffer_length += snprintf(
           (char *)terminal->debug_buffer + terminal->debug_buffer_length,
           DEBUG_BUFFER_LENGTH - terminal->debug_buffer_length - 1, "%c",
