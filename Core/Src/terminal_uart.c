@@ -1051,7 +1051,7 @@ void terminal_uart_transmit_printf(struct terminal *terminal,
   va_start(args, format);
 
   char buffer[PRINTF_BUFFER_SIZE];
-  snprintf(buffer, PRINTF_BUFFER_SIZE, format, args);
+  vsnprintf(buffer, PRINTF_BUFFER_SIZE, format, args);
   terminal_uart_transmit_string(terminal, buffer);
 
   va_end(args);
