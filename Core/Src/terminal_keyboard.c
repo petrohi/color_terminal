@@ -139,7 +139,7 @@ static const struct keys_entry *entries = (struct keys_entry[]){
                KEY_CHR('\x1a')),                       // Z
     KEY_ROUTER(get_shift, KEY_CHR('1'), KEY_CHR('!')), // 1_EXCLAMATION_MARK
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_shift, KEY_CHR('2'), KEY_CHR('@')),
-               KEY_IGNORE), // 2_AT
+               KEY_CHR('\0')), // 2_AT
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_shift, KEY_CHR('3'), KEY_CHR('#')),
                KEY_CHR('\x1b')), // 3_NUMBER_SIGN
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_shift, KEY_CHR('4'), KEY_CHR('$')),
@@ -159,7 +159,7 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_CHR('\x1b'),                                        // ESCAPE
     KEY_ROUTER(get_ctrl, KEY_CHR('\x7f'), KEY_CHR('\x18')), // BACKSPACE
     KEY_CHR('\x09'),                                        // TAB
-    KEY_ROUTER(get_ctrl, KEY_CHR(' '), KEY_IGNORE),         // SPACEBAR
+    KEY_ROUTER(get_ctrl, KEY_CHR(' '), KEY_CHR('\0')),      // SPACEBAR
     KEY_ROUTER(get_shift, KEY_CHR('-'), KEY_CHR('_')),      // MINUS_UNDERSCORE
     KEY_ROUTER(get_shift, KEY_CHR('='), KEY_CHR('+')),      // EQUAL_PLUS
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_shift, KEY_CHR('['), KEY_CHR('{')),
