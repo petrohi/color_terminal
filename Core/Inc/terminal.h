@@ -37,6 +37,9 @@ struct terminal_callbacks {
                                 bool crossedout, color_t active,
                                 color_t inactive);
   void (*screen_draw_cursor)(size_t row, size_t col, color_t color);
+  void (*screen_swap_colors)(color_t color1, color_t top_color);
+  void (*screen_swap_colors_at)(size_t row, size_t col, color_t color1,
+                                color_t color2);
   void (*screen_clear_rows)(size_t from_row, size_t to_row, color_t inactive);
   void (*screen_clear_cols)(size_t row, size_t from_col, size_t to_col,
                             color_t inactive);
@@ -100,7 +103,7 @@ struct terminal {
   bool auto_wrap_mode;
   bool scrolling_mode; // TODO
   bool column_mode;    // TODO
-  bool screen_mode;    // TODO
+  bool screen_mode;
   bool origin_mode;
   bool insert_mode;
 

@@ -14,10 +14,26 @@ static void draw_character(struct terminal *terminal, uint8_t character) {
   color_t inactive = terminal->vs.negative ? terminal->vs.active_color
                                            : terminal->vs.inactive_color;
 
+  if (terminal->screen_mode) {
+    if (active == DEFAULT_INACTIVE_COLOR)
+      active = DEFAULT_ACTIVE_COLOR;
+    else if (active == DEFAULT_ACTIVE_COLOR)
+      active = DEFAULT_INACTIVE_COLOR;
+
+    if (inactive == DEFAULT_INACTIVE_COLOR)
+      inactive = DEFAULT_ACTIVE_COLOR;
+    else if (inactive == DEFAULT_ACTIVE_COLOR)
+      inactive = DEFAULT_INACTIVE_COLOR;
+  }
+
   terminal->callbacks->screen_draw_character(
       terminal->vs.cursor_row, terminal->vs.cursor_col, character,
       terminal->vs.font, terminal->vs.italic, terminal->vs.underlined,
       terminal->vs.crossedout, active, inactive);
+}
+
+static color_t inactive_color(struct terminal *terminal) {
+  return terminal->screen_mode ? DEFAULT_ACTIVE_COLOR : DEFAULT_INACTIVE_COLOR;
 }
 
 static void clear_cursor(struct terminal *terminal) {
@@ -35,14 +51,14 @@ static void clear_rows(struct terminal *terminal, size_t from_row,
                        size_t to_row) {
   clear_cursor(terminal);
   terminal->callbacks->screen_clear_rows(from_row, to_row,
-                                         DEFAULT_INACTIVE_COLOR);
+                                         inactive_color(terminal));
 }
 
 static void clear_cols(struct terminal *terminal, size_t row, size_t from_col,
                        size_t to_col) {
   clear_cursor(terminal);
   terminal->callbacks->screen_clear_cols(row, from_col, to_col,
-                                         DEFAULT_INACTIVE_COLOR);
+                                         inactive_color(terminal));
 }
 
 static void screen_scroll(struct terminal *terminal, enum scroll scroll,
@@ -50,7 +66,7 @@ static void screen_scroll(struct terminal *terminal, enum scroll scroll,
   if (from_row < terminal->margin_bottom)
     terminal->callbacks->screen_scroll(scroll, from_row,
                                        terminal->margin_bottom, rows,
-                                       DEFAULT_INACTIVE_COLOR);
+                                       inactive_color(terminal));
 }
 
 static bool inside_margins(struct terminal *terminal) {
@@ -229,9 +245,9 @@ void terminal_screen_insert(struct terminal *terminal, size_t cols) {
   clear_cursor(terminal);
 
   while (cols--)
-    terminal->callbacks->screen_shift_characters_right(terminal->vs.cursor_row,
-                                                       terminal->vs.cursor_col,
-                                                       DEFAULT_INACTIVE_COLOR);
+    terminal->callbacks->screen_shift_characters_right(
+        terminal->vs.cursor_row, terminal->vs.cursor_col,
+        inactive_color(terminal));
 }
 
 void terminal_screen_delete(struct terminal *terminal, size_t cols) {
@@ -240,7 +256,7 @@ void terminal_screen_delete(struct terminal *terminal, size_t cols) {
   while (cols--)
     terminal->callbacks->screen_shift_characters_left(terminal->vs.cursor_row,
                                                       terminal->vs.cursor_col,
-                                                      DEFAULT_INACTIVE_COLOR);
+                                                      inactive_color(terminal));
 }
 
 void terminal_screen_erase(struct terminal *terminal, size_t cols) {
@@ -248,7 +264,7 @@ void terminal_screen_erase(struct terminal *terminal, size_t cols) {
 
   terminal->callbacks->screen_clear_cols(
       terminal->vs.cursor_row, terminal->vs.cursor_col,
-      terminal->vs.cursor_col + cols, DEFAULT_INACTIVE_COLOR);
+      terminal->vs.cursor_col + cols, inactive_color(terminal));
 }
 
 void terminal_screen_enable_cursor(struct terminal *terminal, bool enable) {
@@ -305,6 +321,15 @@ void terminal_screen_update_cursor(struct terminal *terminal) {
   if (terminal->cursor_on != terminal->cursor_inverted) {
     terminal->cursor_inverted = terminal->cursor_on;
     invert_cursor(terminal);
+  }
+}
+
+void terminal_screen_set_screen_mode(struct terminal *terminal, bool mode) {
+  if (terminal->screen_mode != mode) {
+    terminal->callbacks->screen_swap_colors(DEFAULT_ACTIVE_COLOR,
+                                            DEFAULT_INACTIVE_COLOR);
+
+    terminal->screen_mode = mode;
   }
 }
 

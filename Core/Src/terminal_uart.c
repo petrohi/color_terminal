@@ -714,11 +714,11 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
     break;
 
   case 4: // DECSCKL
-    terminal->screen_mode = true;
+    terminal->scrolling_mode = true;
     break;
 
   case 5: // DECSCNM
-    terminal->scrolling_mode = true;
+    terminal_screen_set_screen_mode(terminal, true);
     break;
 
   case 6: // DECCOM
@@ -769,11 +769,11 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
     break;
 
   case 4: // DECSCKL
-    terminal->screen_mode = false;
+    terminal->scrolling_mode = false;
     break;
 
   case 5: // DECSCNM
-    terminal->scrolling_mode = false;
+    terminal_screen_set_screen_mode(terminal, false);
     break;
 
   case 6: // DECCOM

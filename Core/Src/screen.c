@@ -119,14 +119,42 @@ void screen_draw_cursor(struct screen *screen, size_t row, size_t col,
                         color_t color) {
   size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
 
-  for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++) {
+  for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++)
     for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
 
       size_t i = base + COLS * CHAR_WIDTH * char_y + char_x;
 
       screen->buffer[i] ^= color;
     }
-  }
+}
+
+void screen_swap_colors(struct screen *screen, color_t color1,
+                          color_t color2) {
+  for (size_t y = 0; y < SCREEN_HEIGHT; y++)
+    for (size_t x = 0; x < SCREEN_WIDTH; x++) {
+      size_t i = y * SCREEN_WIDTH + x;
+
+      if (screen->buffer[i] == color1)
+        screen->buffer[i] = color2;
+      else if (screen->buffer[i] == color2)
+        screen->buffer[i] = color1;
+    }
+}
+
+void screen_swap_colors_at(struct screen *screen, size_t row, size_t col,
+                             color_t color1, color_t color2) {
+  size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
+
+  for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++)
+    for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
+
+      size_t i = base + COLS * CHAR_WIDTH * char_y + char_x;
+
+      if (screen->buffer[i] == color1)
+        screen->buffer[i] = color2;
+      else if (screen->buffer[i] == color2)
+        screen->buffer[i] = color1;
+    }
 }
 
 static const struct {

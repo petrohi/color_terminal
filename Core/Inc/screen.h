@@ -34,6 +34,11 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
 void screen_draw_cursor(struct screen *screen, size_t row, size_t col,
                         color_t color);
 
+void screen_swap_colors(struct screen *screen, color_t color1, color_t color2);
+
+void screen_swap_colors_at(struct screen *screen, size_t row, size_t col,
+                           color_t color1, color_t color2);
+
 void screen_test_fonts(struct screen *screen);
 
 void screen_test_mandelbrot(struct screen *screen, float window_x,
