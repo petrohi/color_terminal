@@ -11,13 +11,12 @@ struct lock_state {
 };
 
 enum font {
-  FONT_NORMAL,
-  FONT_BOLD,
-  FONT_THIN,
+  FONT_NORMAL = 0,
+  FONT_BOLD = 1,
+  FONT_THIN = 2,
 };
 
 enum scroll { SCROLL_UP, SCROLL_DOWN };
-enum blink { NO_BLINK, SLOW_BLINK, RAPID_BLINK };
 typedef uint8_t color_t;
 typedef uint8_t character_t;
 
@@ -36,24 +35,17 @@ struct terminal_callbacks {
                                 enum font font, bool italic, bool underlined,
                                 bool crossedout, color_t active,
                                 color_t inactive);
-  void (*screen_draw_cursor)(size_t row, size_t col, color_t color);
-  void (*screen_swap_colors)(color_t color1, color_t top_color);
-  void (*screen_swap_colors_at)(size_t row, size_t col, color_t color1,
-                                color_t color2);
   void (*screen_clear_rows)(size_t from_row, size_t to_row, color_t inactive);
   void (*screen_clear_cols)(size_t row, size_t from_col, size_t to_col,
                             color_t inactive);
   void (*screen_scroll)(enum scroll scroll, size_t from_row, size_t to_row,
                         size_t rows, color_t inactive);
-  void (*screen_shift_characters_right)(size_t row, size_t col,
+  void (*screen_shift_characters_right)(size_t row, size_t col, size_t cols,
                                         color_t inactive);
-  void (*screen_shift_characters_left)(size_t row, size_t col,
+  void (*screen_shift_characters_left)(size_t row, size_t col, size_t cols,
                                        color_t inactive);
   void (*system_reset)();
 };
-
-#define TRANSMIT_BUFFER_SIZE 64
-#define RECEIVE_BUFFER_SIZE 64
 
 struct terminal;
 
@@ -65,20 +57,30 @@ typedef receive_t receive_table_t[CHARACTER_MAX + 1];
 #define CSI_MAX_PARAMS_COUNT 8
 #define CSI_MAX_PARAM_LENGTH 16
 
+struct visual_props {
+  uint8_t font : 2;
+  uint8_t blink : 1;
+  uint8_t italic : 1;
+  uint8_t underlined : 1;
+  uint8_t negative : 1;
+  uint8_t concealed : 1;
+  uint8_t crossedout : 1;
+
+  color_t active_color;
+  color_t inactive_color;
+};
+
+struct visual_cell {
+  character_t c;
+  struct visual_props p;
+};
+
 struct visual_state {
   int16_t cursor_row;
   int16_t cursor_col;
   bool cursor_last_col;
 
-  enum font font;
-  bool italic;
-  bool underlined;
-  enum blink blink;
-  bool negative;
-  bool concealed;
-  bool crossedout;
-  color_t active_color;
-  color_t inactive_color;
+  struct visual_props p;
 };
 
 struct terminal {
@@ -117,7 +119,13 @@ struct terminal {
 
   volatile uint16_t cursor_counter;
   volatile bool cursor_on;
-  bool cursor_inverted;
+  bool cursor_drawn;
+
+  volatile uint16_t blink_counter;
+  volatile bool blink_on;
+  bool blink_drawn;
+
+  struct visual_cell cells[ROWS * COLS];
 
   uint32_t uart_receive_count;
 
@@ -127,8 +135,11 @@ struct terminal {
   size_t csi_params_count;
   size_t csi_last_param_length;
 
-  character_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
-  character_t receive_buffer[RECEIVE_BUFFER_SIZE];
+  character_t *transmit_buffer;
+  size_t transmit_buffer_size;
+
+  character_t *receive_buffer;
+  size_t receive_buffer_size;
 
 #ifdef DEBUG
 #define DEBUG_BUFFER_LENGTH 128
@@ -139,7 +150,9 @@ struct terminal {
 };
 
 void terminal_init(struct terminal *terminal,
-                   const struct terminal_callbacks *callbacks);
+                   const struct terminal_callbacks *callbacks,
+                   character_t *transmit_buffer, size_t transmit_buffer_size,
+                   character_t *receive_buffer, size_t receive_buffer_size);
 void terminal_keyboard_handle_key(struct terminal *terminal, uint8_t key);
 void terminal_keyboard_handle_shift(struct terminal *terminal, bool shift);
 void terminal_keyboard_handle_alt(struct terminal *terminal, bool alt);
@@ -147,5 +160,5 @@ void terminal_keyboard_handle_ctrl(struct terminal *terminal, bool ctrl);
 
 void terminal_uart_receive(struct terminal *terminal, uint32_t count);
 void terminal_timer_tick(struct terminal *terminal);
-void terminal_screen_update_cursor(struct terminal *terminal);
+void terminal_screen_update(struct terminal *terminal);
 void terminal_keyboard_repeat_key(struct terminal *terminal);

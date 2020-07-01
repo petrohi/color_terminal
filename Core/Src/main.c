@@ -159,22 +159,6 @@ static void screen_draw_character_callback(size_t row, size_t col,
                         underlined, crossedout, active, inactive);
 }
 
-static void screen_draw_cursor_callback(size_t row, size_t col, color_t color) {
-
-  screen_draw_cursor(ltdc_get_screen(), row, col, color);
-}
-
-static void screen_swap_colors_callback(color_t color1, color_t color2) {
-
-  screen_swap_colors(ltdc_get_screen(), color1, color2);
-}
-
-static void screen_swap_colors_at_callback(size_t row, size_t col,
-                                           color_t color1, color_t color2) {
-
-  screen_swap_colors_at(ltdc_get_screen(), row, col, color1, color2);
-}
-
 static void screen_clear_rows_callback(size_t from_row, size_t to_row,
                                        color_t inactive) {
   screen_clear_rows(ltdc_get_screen(), from_row, to_row, inactive);
@@ -192,16 +176,24 @@ static void screen_scroll_callback(enum scroll scroll, size_t from_row,
 }
 
 static void screen_shift_characters_right_callback(size_t row, size_t col,
+                                                   size_t cols,
                                                    color_t inactive) {
-  screen_shift_characters_right(ltdc_get_screen(), row, col, inactive);
+  screen_shift_characters_right(ltdc_get_screen(), row, col, cols, inactive);
 }
 
 static void screen_shift_characters_left_callback(size_t row, size_t col,
+                                                  size_t cols,
                                                   color_t inactive) {
-  screen_shift_characters_left(ltdc_get_screen(), row, col, inactive);
+  screen_shift_characters_left(ltdc_get_screen(), row, col, cols, inactive);
 }
 
-struct terminal terminal;
+struct terminal *global_terminal;
+
+#define TRANSMIT_BUFFER_SIZE 64
+#define RECEIVE_BUFFER_SIZE 1024 * 2
+
+static character_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
+static character_t receive_buffer[RECEIVE_BUFFER_SIZE];
 
 /* USER CODE END 0 */
 
@@ -242,21 +234,21 @@ int main(void)
 
   printf("Hello World\n");
 
+  struct terminal terminal;
   struct terminal_callbacks callbacks = {
       .keyboard_set_leds = keyboard_set_leds,
       .uart_transmit = uart_transmit,
       .uart_receive = uart_receive,
       .screen_draw_character = screen_draw_character_callback,
-      .screen_draw_cursor = screen_draw_cursor_callback,
-      .screen_swap_colors = screen_swap_colors_callback,
-      .screen_swap_colors_at = screen_swap_colors_at_callback,
       .screen_clear_rows = screen_clear_rows_callback,
       .screen_clear_cols = screen_clear_cols_callback,
       .screen_scroll = screen_scroll_callback,
       .screen_shift_characters_left = screen_shift_characters_left_callback,
       .screen_shift_characters_right = screen_shift_characters_right_callback,
       .system_reset = HAL_NVIC_SystemReset};
-  terminal_init(&terminal, &callbacks);
+  terminal_init(&terminal, &callbacks, transmit_buffer, TRANSMIT_BUFFER_SIZE,
+                receive_buffer, RECEIVE_BUFFER_SIZE);
+  global_terminal = &terminal;
   start_timer();
 
   // screen_test_colors(ltdc_get_screen());
@@ -291,7 +283,7 @@ int main(void)
 
     keyboard_handle(&terminal);
     terminal_uart_receive(&terminal, uart_receive_count());
-    terminal_screen_update_cursor(&terminal);
+    terminal_screen_update(&terminal);
     terminal_keyboard_repeat_key(&terminal);
   }
   /* USER CODE END 3 */

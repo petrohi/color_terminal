@@ -60,12 +60,12 @@ static void receive_lf(struct terminal *terminal, character_t character) {
 }
 
 static void receive_tab(struct terminal *terminal, character_t character) {
-  int16_t col = terminal_screen_cursor_col(terminal);
+  int16_t col = get_terminal_screen_cursor_col(terminal);
 
   while (col < COLS - 1 && !terminal->tab_stops[++col])
     ;
   terminal_screen_move_cursor_absolute(
-      terminal, terminal_screen_cursor_row(terminal), col);
+      terminal, get_terminal_screen_cursor_row(terminal), col);
 }
 
 static void receive_bs(struct terminal *terminal, character_t character) {
@@ -84,7 +84,7 @@ static void receive_ind(struct terminal *terminal, character_t character) {
 }
 
 static void receive_hts(struct terminal *terminal, character_t character) {
-  terminal->tab_stops[terminal_screen_cursor_col(terminal)] = true;
+  terminal->tab_stops[get_terminal_screen_cursor_col(terminal)] = true;
   clear_receive_table(terminal);
 }
 
@@ -200,7 +200,7 @@ static void receive_tbc(struct terminal *terminal, character_t character) {
   int16_t mode = get_csi_param(terminal, 0);
 
   if (mode == 0)
-    terminal->tab_stops[terminal_screen_cursor_col(terminal)] = false;
+    terminal->tab_stops[get_terminal_screen_cursor_col(terminal)] = false;
   else if (mode == 3)
     memset(terminal->tab_stops, 0, COLS);
 #ifdef DEBUG
@@ -215,15 +215,15 @@ static void receive_hpa(struct terminal *terminal, character_t character) {
   int16_t col = get_csi_param(terminal, 0);
 
   terminal_screen_move_cursor_absolute(
-      terminal, terminal_screen_cursor_row(terminal), col - 1);
+      terminal, get_terminal_screen_cursor_row(terminal), col - 1);
   clear_receive_table(terminal);
 }
 
 static void receive_vpa(struct terminal *terminal, character_t character) {
   int16_t row = get_csi_param(terminal, 0);
 
-  terminal_screen_move_cursor_absolute(terminal, row - 1,
-                                       terminal_screen_cursor_col(terminal));
+  terminal_screen_move_cursor_absolute(
+      terminal, row - 1, get_terminal_screen_cursor_col(terminal));
   clear_receive_table(terminal);
 }
 
@@ -294,9 +294,9 @@ static void receive_dsr(struct terminal *terminal, character_t character) {
     break;
 
   case 6: {
-    int row = terminal_screen_cursor_row(terminal) + 1;
-    int col = terminal_screen_cursor_col(terminal) + 1;
-    terminal_uart_transmit_printf(terminal, "\x1b[%d;%dR", row, col);
+    terminal_uart_transmit_printf(terminal, "\x1b[%d;%dR",
+                                  get_terminal_screen_cursor_row(terminal) + 1,
+                                  get_terminal_screen_cursor_col(terminal) + 1);
   } break;
 
 #ifdef DEBUG
@@ -345,97 +345,94 @@ static void handle_sgr(struct terminal *terminal, size_t *i) {
 
   switch (code) {
   case 0:
-    terminal->vs.font = FONT_NORMAL;
-    terminal->vs.italic = false;
-    terminal->vs.underlined = false;
-    terminal->vs.blink = NO_BLINK;
-    terminal->vs.negative = false;
-    terminal->vs.concealed = false;
-    terminal->vs.crossedout = false;
-    terminal->vs.active_color = DEFAULT_ACTIVE_COLOR;
-    terminal->vs.inactive_color = DEFAULT_INACTIVE_COLOR;
+    terminal->vs.p.font = FONT_NORMAL;
+    terminal->vs.p.italic = false;
+    terminal->vs.p.underlined = false;
+    terminal->vs.p.blink = false;
+    terminal->vs.p.negative = false;
+    terminal->vs.p.concealed = false;
+    terminal->vs.p.crossedout = false;
+    terminal->vs.p.active_color = DEFAULT_ACTIVE_COLOR;
+    terminal->vs.p.inactive_color = DEFAULT_INACTIVE_COLOR;
     break;
 
   case 1:
-    terminal->vs.font = FONT_BOLD;
+    terminal->vs.p.font = FONT_BOLD;
     break;
 
   case 2:
-    terminal->vs.font = FONT_THIN;
+    terminal->vs.p.font = FONT_THIN;
     break;
 
   case 3:
-    terminal->vs.italic = true;
+    terminal->vs.p.italic = true;
     break;
 
   case 4:
-    terminal->vs.underlined = true;
+    terminal->vs.p.underlined = true;
     break;
 
   case 5:
-    terminal->vs.blink = SLOW_BLINK;
-    break;
-
   case 6:
-    terminal->vs.blink = RAPID_BLINK;
+    terminal->vs.p.blink = true;
     break;
 
   case 7:
-    terminal->vs.negative = true;
+    terminal->vs.p.negative = true;
     break;
 
   case 8:
-    terminal->vs.concealed = true;
+    terminal->vs.p.concealed = true;
     break;
 
   case 9:
-    terminal->vs.crossedout = true;
+    terminal->vs.p.crossedout = true;
     break;
 
   case 10:
   case 21:
   case 22:
-    terminal->vs.font = FONT_NORMAL;
+    terminal->vs.p.font = FONT_NORMAL;
     break;
 
   case 23:
-    terminal->vs.italic = false;
+    terminal->vs.p.italic = false;
     break;
 
   case 24:
-    terminal->vs.underlined = false;
+    terminal->vs.p.underlined = false;
     break;
 
   case 25:
-    terminal->vs.blink = NO_BLINK;
+    terminal->vs.p.blink = false;
     break;
 
   case 27:
-    terminal->vs.negative = false;
+    terminal->vs.p.negative = false;
     break;
 
   case 28:
-    terminal->vs.concealed = false;
+    terminal->vs.p.concealed = false;
     break;
 
   case 29:
-    terminal->vs.crossedout = false;
+    terminal->vs.p.crossedout = false;
     break;
 
   case 38:
-    terminal->vs.active_color = get_sgr_color(terminal, i);
+    terminal->vs.p.active_color = get_sgr_color(terminal, i);
     break;
 
   case 39:
-    terminal->vs.active_color = DEFAULT_ACTIVE_COLOR;
+    terminal->vs.p.active_color = DEFAULT_ACTIVE_COLOR;
     break;
 
   case 48:
-    terminal->vs.inactive_color = get_sgr_color(terminal, i);
+    terminal->vs.p.inactive_color = get_sgr_color(terminal, i);
     break;
 
   case 49:
-    terminal->vs.inactive_color = DEFAULT_INACTIVE_COLOR;
+    terminal->vs.p.inactive_color = DEFAULT_INACTIVE_COLOR;
     break;
 
   default:
@@ -445,13 +442,13 @@ static void handle_sgr(struct terminal *terminal, size_t *i) {
 
   if (unhandled) {
     if (code >= 30 && code < 38)
-      terminal->vs.active_color = code - 30;
+      terminal->vs.p.active_color = code - 30;
     else if (code >= 40 && code < 48)
-      terminal->vs.inactive_color = code - 40;
+      terminal->vs.p.inactive_color = code - 40;
     else if (code >= 90 && code < 98)
-      terminal->vs.active_color = code - 90 + 8;
+      terminal->vs.p.active_color = code - 90 + 8;
     else if (code >= 100 && code < 108)
-      terminal->vs.inactive_color = code - 100 + 8;
+      terminal->vs.p.inactive_color = code - 100 + 8;
 #ifdef DEBUG
     else
       terminal->unhandled = true;
@@ -530,7 +527,7 @@ static void receive_cha(struct terminal *terminal, character_t character) {
   int16_t col = get_csi_param(terminal, 0);
 
   terminal_screen_move_cursor_absolute(
-      terminal, terminal_screen_cursor_row(terminal), col - 1);
+      terminal, get_terminal_screen_cursor_row(terminal), col - 1);
   clear_receive_table(terminal);
 }
 
@@ -644,7 +641,7 @@ static void receive_il(struct terminal *terminal, character_t character) {
     rows = 1;
 
   terminal_screen_scroll(terminal, SCROLL_DOWN,
-                         terminal_screen_cursor_row(terminal), rows);
+                         get_terminal_screen_cursor_row(terminal), rows);
   clear_receive_table(terminal);
 }
 
@@ -654,7 +651,7 @@ static void receive_dl(struct terminal *terminal, character_t character) {
     rows = 1;
 
   terminal_screen_scroll(terminal, SCROLL_UP,
-                         terminal_screen_cursor_row(terminal), rows);
+                         get_terminal_screen_cursor_row(terminal), rows);
   clear_receive_table(terminal);
 }
 
@@ -843,12 +840,12 @@ static void receive_character(struct terminal *terminal,
   // Keep zero for the end of the string for printf
   if (terminal->receive_table != &default_receive_table &&
       terminal->debug_buffer_length < DEBUG_BUFFER_LENGTH - 1) {
-    if (character < 0x20 || (character >= 0x7f && character <= 0xa0)) {
-      int c = character;
+    if (character < 0x20 || (character >= 0x7f && character <= 0xa0))
       terminal->debug_buffer_length += snprintf(
           (char *)terminal->debug_buffer + terminal->debug_buffer_length,
-          DEBUG_BUFFER_LENGTH - terminal->debug_buffer_length - 1, "\\x%x", c);
-    } else
+          DEBUG_BUFFER_LENGTH - terminal->debug_buffer_length - 1, "\\x%x",
+          character);
+    else
       terminal->debug_buffer_length += snprintf(
           (char *)terminal->debug_buffer + terminal->debug_buffer_length,
           DEBUG_BUFFER_LENGTH - terminal->debug_buffer_length - 1, "%c",
@@ -1021,12 +1018,13 @@ void terminal_uart_receive(struct terminal *terminal, uint32_t count) {
   uint32_t i = terminal->uart_receive_count;
 
   while (i != count) {
-    character_t character = terminal->receive_buffer[RECEIVE_BUFFER_SIZE - i];
+    character_t character =
+        terminal->receive_buffer[terminal->receive_buffer_size - i];
     receive_character(terminal, character);
     i--;
 
     if (i == 0)
-      i = RECEIVE_BUFFER_SIZE;
+      i = terminal->receive_buffer_size;
   }
 
   terminal->uart_receive_count = count;
@@ -1043,6 +1041,8 @@ void terminal_uart_transmit_string(struct terminal *terminal,
   size_t len = strlen(string);
   memcpy(terminal->transmit_buffer, string, len);
   terminal->callbacks->uart_transmit(terminal->transmit_buffer, len);
+
+  // TODO: len > transmit_buffer_size
 }
 
 void terminal_uart_transmit_printf(struct terminal *terminal,
@@ -1064,9 +1064,9 @@ void terminal_uart_init(struct terminal *terminal) {
   terminal->csi_params_count = 0;
   terminal->csi_last_param_length = 0;
 
-  terminal->uart_receive_count = RECEIVE_BUFFER_SIZE;
+  terminal->uart_receive_count = terminal->receive_buffer_size;
   terminal->callbacks->uart_receive(terminal->receive_buffer,
-                                    sizeof(terminal->receive_buffer));
+                                    terminal->receive_buffer_size);
 #ifdef DEBUG
   memset(terminal->debug_buffer, 0, DEBUG_BUFFER_LENGTH);
   terminal->debug_buffer_length = 0;

@@ -8,11 +8,20 @@
 void terminal_timer_tick(struct terminal *terminal) {
   terminal_keyboard_update_repeat_counter(terminal);
   terminal_screen_update_cursor_counter(terminal);
+  terminal_screen_update_blink_counter(terminal);
 }
 
 void terminal_init(struct terminal *terminal,
-                   const struct terminal_callbacks *callbacks) {
+                   const struct terminal_callbacks *callbacks,
+                   character_t *transmit_buffer, size_t transmit_buffer_size,
+                   character_t *receive_buffer, size_t receive_buffer_size) {
   terminal->callbacks = callbacks;
+
+  terminal->transmit_buffer = transmit_buffer;
+  terminal->transmit_buffer_size = transmit_buffer_size;
+
+  terminal->receive_buffer = receive_buffer;
+  terminal->receive_buffer_size = receive_buffer_size;
 
   terminal_keyboard_init(terminal);
   terminal_screen_init(terminal);

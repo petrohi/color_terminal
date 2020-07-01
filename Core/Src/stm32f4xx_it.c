@@ -68,7 +68,7 @@ extern TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN EV */
 
-extern struct terminal terminal;
+extern struct terminal *global_terminal;
 
 /* USER CODE END EV */
 
@@ -205,7 +205,7 @@ void TIM1_UP_TIM10_IRQHandler(void)
   HAL_TIM_IRQHandler(&htim1);
   /* USER CODE BEGIN TIM1_UP_TIM10_IRQn 1 */
   
-  terminal_timer_tick(&terminal);
+  terminal_timer_tick(global_terminal);
 
   /* USER CODE END TIM1_UP_TIM10_IRQn 1 */
 }

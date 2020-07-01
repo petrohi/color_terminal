@@ -5,8 +5,11 @@
 #include <memory.h>
 
 void screen_clear_rows(struct screen *screen, size_t from_row, size_t to_row,
-                  color_t inactive) {
+                       color_t inactive) {
   if (to_row <= from_row)
+    return;
+
+  if (to_row > ROWS)
     return;
 
   size_t size = SCREEN_WIDTH * CHAR_HEIGHT * (to_row - from_row);
@@ -17,7 +20,13 @@ void screen_clear_rows(struct screen *screen, size_t from_row, size_t to_row,
 
 void screen_clear_cols(struct screen *screen, size_t row, size_t from_col,
                        size_t to_col, color_t inactive) {
+  if (row >= ROWS)
+    return;
+
   if (to_col <= from_col)
+    return;
+
+  if (to_col > COLS)
     return;
 
   size_t size = CHAR_WIDTH * (to_col - from_col);
@@ -28,31 +37,61 @@ void screen_clear_cols(struct screen *screen, size_t row, size_t from_col,
 }
 
 void screen_shift_characters_right(struct screen *screen, size_t row,
-                                   size_t col, color_t inactive) {
-  size_t size = CHAR_WIDTH * (COLS - col - 1);
-  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
+                                   size_t col, size_t cols, color_t inactive) {
+  if (row >= ROWS)
+    return;
 
-  for (size_t i = 0; i < CHAR_HEIGHT; ++i)
-    memmove(screen->buffer + offset + (SCREEN_WIDTH * i) + CHAR_WIDTH,
-            screen->buffer + offset + (SCREEN_WIDTH * i), size);
+  if (col >= COLS)
+    return;
 
-  screen_clear_cols(screen, row, col, col + 1, inactive);
+  if (col + cols > COLS)
+    return;
+
+  if (col + cols < COLS) {
+    size_t size = CHAR_WIDTH * (COLS - col - cols);
+    size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
+    size_t disp = CHAR_WIDTH * cols;
+
+    for (size_t i = 0; i < CHAR_HEIGHT; ++i)
+      memmove(screen->buffer + offset + (SCREEN_WIDTH * i) + disp,
+              screen->buffer + offset + (SCREEN_WIDTH * i), size);
+  }
+
+  screen_clear_cols(screen, row, col, col + cols, inactive);
 }
 
 void screen_shift_characters_left(struct screen *screen, size_t row, size_t col,
-                                  color_t inactive) {
-  size_t size = CHAR_WIDTH * (COLS - col - 1);
-  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
+                                  size_t cols, color_t inactive) {
+  if (row >= ROWS)
+    return;
 
-  for (size_t i = 0; i < CHAR_HEIGHT; ++i)
-    memcpy(screen->buffer + offset + (SCREEN_WIDTH * i),
-           screen->buffer + offset + (SCREEN_WIDTH * i) + CHAR_WIDTH, size);
+  if (col >= COLS)
+    return;
 
-  screen_clear_cols(screen, row, COLS - 1, COLS, inactive);
+  if (col + cols > COLS)
+    return;
+
+  if (col + cols < COLS) {
+    size_t size = CHAR_WIDTH * (COLS - col - cols);
+    size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
+    size_t disp = CHAR_WIDTH * cols;
+
+    for (size_t i = 0; i < CHAR_HEIGHT; ++i)
+      memcpy(screen->buffer + offset + (SCREEN_WIDTH * i),
+             screen->buffer + offset + (SCREEN_WIDTH * i) + disp, size);
+  }
+
+  screen_clear_cols(screen, row, COLS - cols, COLS, inactive);
 }
 
 void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
                    size_t to_row, size_t rows, color_t inactive) {
+  if (to_row <= from_row)
+    return;
+
+  if (to_row > ROWS)
+    return;
+
   if (to_row <= from_row + rows) {
     screen_clear_rows(screen, from_row, to_row, inactive);
     return;
@@ -79,6 +118,11 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
                            uint8_t character, enum font font, bool italic,
                            bool underlined, bool crossedout, color_t active,
                            color_t inactive) {
+  if (row >= ROWS)
+    return;
+
+  if (col >= COLS)
+    return;
 
   if (character >= 0x20 && character <= 0x7e) {
     character -= 0x1f;
@@ -101,7 +145,7 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
 
       color_t color = inactive;
 
-      if ((underlined && char_y == CHAR_HEIGHT - 1) ||
+      if ((underlined && char_y == CHAR_HEIGHT - 2) ||
           (crossedout && char_y == CHAR_HEIGHT / 2) ||
 
           (char_x < FONT_WIDTH &&
@@ -113,48 +157,6 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
       screen->buffer[i] = color;
     }
   }
-}
-
-void screen_draw_cursor(struct screen *screen, size_t row, size_t col,
-                        color_t color) {
-  size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
-
-  for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++)
-    for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
-
-      size_t i = base + COLS * CHAR_WIDTH * char_y + char_x;
-
-      screen->buffer[i] ^= color;
-    }
-}
-
-void screen_swap_colors(struct screen *screen, color_t color1,
-                          color_t color2) {
-  for (size_t y = 0; y < SCREEN_HEIGHT; y++)
-    for (size_t x = 0; x < SCREEN_WIDTH; x++) {
-      size_t i = y * SCREEN_WIDTH + x;
-
-      if (screen->buffer[i] == color1)
-        screen->buffer[i] = color2;
-      else if (screen->buffer[i] == color2)
-        screen->buffer[i] = color1;
-    }
-}
-
-void screen_swap_colors_at(struct screen *screen, size_t row, size_t col,
-                             color_t color1, color_t color2) {
-  size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
-
-  for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++)
-    for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
-
-      size_t i = base + COLS * CHAR_WIDTH * char_y + char_x;
-
-      if (screen->buffer[i] == color1)
-        screen->buffer[i] = color2;
-      else if (screen->buffer[i] == color2)
-        screen->buffer[i] = color1;
-    }
 }
 
 static const struct {
@@ -178,8 +180,8 @@ void screen_test_fonts(struct screen *screen) {
         uint8_t character = ((row * 16) + col);
 
         screen_draw_character(
-            screen, row, col + 16 * i, character,
-            font_tests[i].font, font_tests[i].italic, font_tests[i].underlined,
+            screen, row, col + 16 * i, character, font_tests[i].font,
+            font_tests[i].italic, font_tests[i].underlined,
             font_tests[i].crossedout, font_tests[i].active, 0);
       }
     }

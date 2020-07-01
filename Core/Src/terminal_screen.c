@@ -1,18 +1,135 @@
 #include "terminal_internal.h"
 
+#include <memory.h>
+
 #define CURSOR_ON_COUNTER 650
 #define CURSOR_OFF_COUNTER 350
 
-static void invert_cursor(struct terminal *terminal) {
-  terminal->callbacks->screen_draw_cursor(terminal->vs.cursor_row,
-                                          terminal->vs.cursor_col, 0xf);
+#define BLINK_ON_COUNTER 500
+#define BLINK_OFF_COUNTER 500
+
+#define CELL_SIZE sizeof(struct visual_cell)
+#define CELLS_ROW_SIZE CELL_SIZE *COLS
+#define CELLS_SIZE CELLS_ROW_SIZE *ROWS
+
+static void clear_cells_rows(struct terminal *terminal, int16_t from_row,
+                             int16_t to_row) {
+  if (to_row <= from_row)
+    return;
+
+  if (to_row > ROWS)
+    return;
+
+  for (int16_t row = from_row; row < to_row; ++row) {
+    memset((void *)terminal->cells + from_row * CELLS_ROW_SIZE, 0,
+           CELLS_ROW_SIZE * (to_row - from_row));
+  }
 }
 
-static void draw_character(struct terminal *terminal, uint8_t character) {
-  color_t active = terminal->vs.negative ? terminal->vs.inactive_color
-                                         : terminal->vs.active_color;
-  color_t inactive = terminal->vs.negative ? terminal->vs.active_color
-                                           : terminal->vs.inactive_color;
+static void clear_cells_cols(struct terminal *terminal, int16_t row,
+                             int16_t from_col, int16_t to_col) {
+  if (row >= ROWS)
+    return;
+
+  if (to_col <= from_col)
+    return;
+
+  if (to_col > COLS)
+    return;
+
+  memset((void *)terminal->cells + row * CELLS_ROW_SIZE + from_col * CELL_SIZE,
+         0, CELL_SIZE * (to_col - from_col));
+}
+
+static void scroll_cells(struct terminal *terminal, enum scroll scroll,
+                         int16_t from_row, int16_t to_row, int16_t rows) {
+  if (to_row <= from_row)
+    return;
+
+  if (to_row > ROWS)
+    return;
+
+  if (to_row <= from_row + rows) {
+    clear_cells_rows(terminal, from_row, to_row);
+    return;
+  }
+
+  size_t disp = CELLS_ROW_SIZE * rows;
+  size_t size = CELLS_ROW_SIZE * (to_row - from_row - rows);
+  size_t offset = CELLS_ROW_SIZE * from_row;
+
+  if (scroll == SCROLL_DOWN) {
+    memmove((void *)terminal->cells + offset + disp,
+            (void *)terminal->cells + offset, size);
+
+    clear_cells_rows(terminal, from_row, from_row + rows);
+  } else if (scroll == SCROLL_UP) {
+    memcpy((void *)terminal->cells + offset,
+           (void *)terminal->cells + offset + disp, size);
+
+    clear_cells_rows(terminal, to_row - rows, to_row);
+  }
+}
+
+static void shift_cells_right(struct terminal *terminal, int16_t row,
+                              int16_t col, size_t cols) {
+  if (row >= ROWS)
+    return;
+
+  if (col >= COLS)
+    return;
+
+  if (col + cols > COLS)
+    return;
+
+  if (col + cols < COLS) {
+    size_t size = CELL_SIZE * (COLS - col - cols);
+    size_t offset = CELLS_ROW_SIZE * row + CELL_SIZE * col;
+    size_t disp = CELL_SIZE * cols;
+
+    memmove((void *)terminal->cells + offset + disp,
+            (void *)terminal->cells + offset, size);
+  }
+
+  clear_cells_cols(terminal, row, col, col + cols);
+}
+
+static void shift_cells_left(struct terminal *terminal, int16_t row,
+                             int16_t col, size_t cols) {
+  if (row >= ROWS)
+    return;
+
+  if (col >= COLS)
+    return;
+
+  if (col + cols > COLS)
+    return;
+
+  if (col + cols < COLS) {
+    size_t size = CELL_SIZE * (COLS - col - cols);
+    size_t offset = CELLS_ROW_SIZE * row + CELL_SIZE * col;
+    size_t disp = CELL_SIZE * cols;
+
+    memcpy((void *)terminal->cells + offset,
+           (void *)terminal->cells + offset + disp, size);
+  }
+
+  clear_cells_cols(terminal, row, COLS - cols, COLS);
+}
+
+struct visual_cell *get_cell(struct terminal *terminal, int16_t row,
+                             int16_t col) {
+  return &terminal->cells[row * COLS + col];
+}
+
+static void render_character(struct terminal *terminal, int16_t row,
+                             int16_t col, bool cursor, bool blink) {
+  struct visual_cell *cell = get_cell(terminal, row, col);
+
+  color_t active =
+      cell->p.negative ? cell->p.inactive_color : cell->p.active_color;
+  color_t inactive =
+      cell->p.negative ? cell->p.active_color : cell->p.inactive_color;
 
   if (terminal->screen_mode) {
     if (active == DEFAULT_INACTIVE_COLOR)
@@ -26,47 +143,128 @@ static void draw_character(struct terminal *terminal, uint8_t character) {
       inactive = DEFAULT_INACTIVE_COLOR;
   }
 
+  if (cursor) {
+    active = ~active;
+    inactive = ~inactive;
+  }
+
+  if (terminal->vs.p.concealed || blink) {
+    active = inactive;
+  }
+
   terminal->callbacks->screen_draw_character(
-      terminal->vs.cursor_row, terminal->vs.cursor_col, character,
-      terminal->vs.font, terminal->vs.italic, terminal->vs.underlined,
-      terminal->vs.crossedout, active, inactive);
+      row, col, cell->c, cell->p.font, cell->p.italic, cell->p.underlined,
+      cell->p.crossedout, active, inactive);
+}
+
+static void draw_cursor(struct terminal *terminal) {
+  if (!terminal->cursor_drawn) {
+    render_character(
+        terminal, terminal->vs.cursor_row, terminal->vs.cursor_col, true,
+        terminal->blink_drawn &&
+            get_cell(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col)
+                ->p.blink);
+    terminal->cursor_drawn = true;
+  }
+}
+
+static void clear_cursor(struct terminal *terminal) {
+  if (terminal->cursor_drawn) {
+    render_character(
+        terminal, terminal->vs.cursor_row, terminal->vs.cursor_col, false,
+        terminal->blink_drawn &&
+            get_cell(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col)
+                ->p.blink);
+    terminal->cursor_drawn = false;
+  }
+}
+
+static void update_cursor(struct terminal *terminal) {
+  if (terminal->cursor_on) {
+    draw_cursor(terminal);
+  } else {
+    clear_cursor(terminal);
+  }
+}
+
+static void draw_blink(struct terminal *terminal, bool blink) {
+  if (terminal->blink_drawn != blink) {
+    for (int16_t row = 0; row < ROWS; ++row)
+      for (int16_t col = 0; col < COLS; ++col)
+        if (get_cell(terminal, row, col)->p.blink)
+          render_character(terminal, row, col,
+                           terminal->cursor_drawn &&
+                               terminal->vs.cursor_row == row &&
+                               terminal->vs.cursor_col == col,
+                           blink);
+
+    terminal->blink_drawn = blink;
+  }
+}
+
+static void clear_blink(struct terminal *terminal) {
+  if (terminal->blink_drawn) {
+    draw_blink(terminal, false);
+  }
+}
+
+static void update_blink(struct terminal *terminal) {
+  draw_blink(terminal, terminal->blink_on);
+}
+
+static void draw_character(struct terminal *terminal, uint8_t character) {
+  struct visual_cell *cell =
+      get_cell(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col);
+
+  cell->p = terminal->vs.p;
+  cell->c = character;
+
+  render_character(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
+                   terminal->cursor_drawn,
+                   terminal->blink_drawn && cell->p.blink);
+}
+
+static void draw_screen(struct terminal *terminal) {
+  for (int16_t row = 0; row < ROWS; ++row)
+    for (int16_t col = 0; col < COLS; ++col) {
+      struct visual_cell *cell = get_cell(terminal, row, col);
+      render_character(
+          terminal, row, col,
+          terminal->cursor_drawn && terminal->vs.cursor_row == row &&
+              terminal->vs.cursor_col == col,
+          terminal->blink_drawn && cell->p.blink);
+    }
 }
 
 static color_t inactive_color(struct terminal *terminal) {
   return terminal->screen_mode ? DEFAULT_ACTIVE_COLOR : DEFAULT_INACTIVE_COLOR;
 }
 
-static void clear_cursor(struct terminal *terminal) {
-  if (terminal->cursor_counter) {
-    if (terminal->cursor_inverted) {
-      invert_cursor(terminal);
-    }
-    terminal->cursor_counter = CURSOR_ON_COUNTER;
-    terminal->cursor_on = true;
-    terminal->cursor_inverted = false;
-  }
-}
-
-static void clear_rows(struct terminal *terminal, size_t from_row,
-                       size_t to_row) {
-  clear_cursor(terminal);
+static void clear_rows(struct terminal *terminal, int16_t from_row,
+                       int16_t to_row) {
   terminal->callbacks->screen_clear_rows(from_row, to_row,
                                          inactive_color(terminal));
+
+  clear_cells_rows(terminal, from_row, to_row);
 }
 
-static void clear_cols(struct terminal *terminal, size_t row, size_t from_col,
-                       size_t to_col) {
-  clear_cursor(terminal);
+static void clear_cols(struct terminal *terminal, int16_t row, int16_t from_col,
+                       int16_t to_col) {
   terminal->callbacks->screen_clear_cols(row, from_col, to_col,
                                          inactive_color(terminal));
+
+  clear_cells_cols(terminal, row, from_col, to_col);
 }
 
 static void screen_scroll(struct terminal *terminal, enum scroll scroll,
-                          size_t from_row, size_t rows) {
-  if (from_row < terminal->margin_bottom)
+                          int16_t from_row, int16_t rows) {
+  if (from_row < terminal->margin_bottom) {
     terminal->callbacks->screen_scroll(scroll, from_row,
                                        terminal->margin_bottom, rows,
                                        inactive_color(terminal));
+
+    scroll_cells(terminal, scroll, from_row, terminal->margin_bottom, rows);
+  }
 }
 
 static bool inside_margins(struct terminal *terminal) {
@@ -103,14 +301,16 @@ void terminal_screen_move_cursor_absolute(struct terminal *terminal,
   terminal->vs.cursor_row = row;
   terminal->vs.cursor_col = col;
   terminal->vs.cursor_last_col = false;
+
+  update_cursor(terminal);
 }
 
-int16_t terminal_screen_cursor_row(struct terminal *terminal) {
+int16_t get_terminal_screen_cursor_row(struct terminal *terminal) {
   return terminal->vs.cursor_row -
          (terminal->origin_mode ? terminal->margin_top : 0);
 }
 
-int16_t terminal_screen_cursor_col(struct terminal *terminal) {
+int16_t get_terminal_screen_cursor_col(struct terminal *terminal) {
   return terminal->vs.cursor_col;
 }
 
@@ -144,6 +344,8 @@ void terminal_screen_move_cursor(struct terminal *terminal, int16_t rows,
   terminal->vs.cursor_row = row;
   terminal->vs.cursor_col = col;
   terminal->vs.cursor_last_col = false;
+
+  update_cursor(terminal);
 }
 
 void terminal_screen_carriage_return(struct terminal *terminal) {
@@ -151,41 +353,83 @@ void terminal_screen_carriage_return(struct terminal *terminal) {
 
   terminal->vs.cursor_col = 0;
   terminal->vs.cursor_last_col = false;
+
+  update_cursor(terminal);
 }
 
 void terminal_screen_scroll(struct terminal *terminal, enum scroll scroll,
                             size_t from_row, size_t rows) {
   clear_cursor(terminal);
+  clear_blink(terminal);
 
   if (terminal->origin_mode) {
     from_row = terminal->margin_top + from_row;
   }
 
   screen_scroll(terminal, scroll, from_row, rows);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_clear_to_right(struct terminal *terminal) {
+  clear_blink(terminal);
+  clear_cursor(terminal);
+
   clear_cols(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col, COLS);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_clear_to_left(struct terminal *terminal) {
+  clear_blink(terminal);
+  clear_cursor(terminal);
+
   clear_cols(terminal, terminal->vs.cursor_row, 0, terminal->vs.cursor_col + 1);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_clear_to_top(struct terminal *terminal) {
+  clear_blink(terminal);
+  clear_cursor(terminal);
+
   clear_rows(terminal, 0, terminal->vs.cursor_row);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_clear_row(struct terminal *terminal) {
+  clear_blink(terminal);
+  clear_cursor(terminal);
+
   clear_cols(terminal, terminal->vs.cursor_row, 0, COLS);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_clear_to_bottom(struct terminal *terminal) {
+  clear_blink(terminal);
+  clear_cursor(terminal);
+
   clear_rows(terminal, terminal->vs.cursor_row + 1, ROWS);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_clear_all(struct terminal *terminal) {
+  clear_blink(terminal);
+  clear_cursor(terminal);
+
   clear_rows(terminal, 0, ROWS);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_index(struct terminal *terminal, int16_t rows) {
@@ -193,36 +437,45 @@ void terminal_screen_index(struct terminal *terminal, int16_t rows) {
 
   if (inside_margins(terminal)) {
     if (terminal->vs.cursor_row + rows >= terminal->margin_bottom) {
+      clear_blink(terminal);
+
       screen_scroll(
           terminal, SCROLL_UP, terminal->margin_top,
           rows - (terminal->margin_bottom - 1 - terminal->vs.cursor_row));
       terminal->vs.cursor_row = terminal->margin_bottom - 1;
+
+      update_blink(terminal);
     } else
       terminal->vs.cursor_row += rows;
   } else
     terminal_screen_move_cursor_absolute(
         terminal, terminal->vs.cursor_row + rows, terminal->vs.cursor_col);
+
+  update_cursor(terminal);
 }
 
 void terminal_screen_reverse_index(struct terminal *terminal, int16_t rows) {
   clear_cursor(terminal);
-
   if (inside_margins(terminal)) {
     if (terminal->vs.cursor_row - rows < terminal->margin_top) {
+      clear_blink(terminal);
+
       screen_scroll(terminal, SCROLL_DOWN, terminal->margin_top,
                     rows - (terminal->vs.cursor_row - terminal->margin_top));
       terminal->vs.cursor_row = terminal->margin_top;
+
+      update_blink(terminal);
     } else
       terminal->vs.cursor_row -= rows;
   } else
     terminal_screen_move_cursor_absolute(
         terminal, terminal->vs.cursor_row - rows, terminal->vs.cursor_col);
+
+  update_cursor(terminal);
 }
 
 void terminal_screen_put_character(struct terminal *terminal,
                                    character_t character) {
-  clear_cursor(terminal);
-
   if (terminal->vs.cursor_last_col) {
     terminal_screen_carriage_return(terminal);
     terminal_screen_index(terminal, 1);
@@ -231,40 +484,58 @@ void terminal_screen_put_character(struct terminal *terminal,
   if (terminal->insert_mode)
     terminal_screen_insert(terminal, 1);
 
-  if (!terminal->vs.concealed)
-    draw_character(terminal, character);
+  clear_cursor(terminal);
+
+  draw_character(terminal, character);
 
   if (terminal->vs.cursor_col == COLS - 1) {
     if (terminal->auto_wrap_mode)
       terminal->vs.cursor_last_col = true;
   } else
     terminal->vs.cursor_col++;
+
+  update_cursor(terminal);
 }
 
 void terminal_screen_insert(struct terminal *terminal, size_t cols) {
   clear_cursor(terminal);
+  clear_blink(terminal);
 
-  while (cols--)
-    terminal->callbacks->screen_shift_characters_right(
-        terminal->vs.cursor_row, terminal->vs.cursor_col,
-        inactive_color(terminal));
+  terminal->callbacks->screen_shift_characters_right(
+      terminal->vs.cursor_row, terminal->vs.cursor_col, cols,
+      inactive_color(terminal));
+
+  shift_cells_right(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
+                    cols);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_delete(struct terminal *terminal, size_t cols) {
   clear_cursor(terminal);
+  clear_blink(terminal);
 
-  while (cols--)
-    terminal->callbacks->screen_shift_characters_left(terminal->vs.cursor_row,
-                                                      terminal->vs.cursor_col,
-                                                      inactive_color(terminal));
+  terminal->callbacks->screen_shift_characters_left(
+      terminal->vs.cursor_row, terminal->vs.cursor_col, cols,
+      inactive_color(terminal));
+
+  shift_cells_left(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
+                   cols);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_erase(struct terminal *terminal, size_t cols) {
   clear_cursor(terminal);
+  clear_blink(terminal);
 
-  terminal->callbacks->screen_clear_cols(
-      terminal->vs.cursor_row, terminal->vs.cursor_col,
-      terminal->vs.cursor_col + cols, inactive_color(terminal));
+  clear_cols(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
+             terminal->vs.cursor_col + cols);
+
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_enable_cursor(struct terminal *terminal, bool enable) {
@@ -278,12 +549,10 @@ void terminal_screen_enable_cursor(struct terminal *terminal, bool enable) {
     terminal->cursor_on = false;
   }
 
-  terminal->cursor_inverted = false;
+  update_cursor(terminal);
 }
 
 void terminal_screen_save_visual_state(struct terminal *terminal) {
-  clear_cursor(terminal);
-
   terminal->saved_vs = terminal->vs;
 }
 
@@ -299,6 +568,8 @@ void terminal_screen_restore_visual_state(struct terminal *terminal) {
     if (terminal->vs.cursor_row >= terminal->margin_bottom)
       terminal->vs.cursor_row = terminal->margin_bottom - 1;
   }
+
+  update_cursor(terminal);
 }
 
 void terminal_screen_update_cursor_counter(struct terminal *terminal) {
@@ -317,19 +588,31 @@ void terminal_screen_update_cursor_counter(struct terminal *terminal) {
   }
 }
 
-void terminal_screen_update_cursor(struct terminal *terminal) {
-  if (terminal->cursor_on != terminal->cursor_inverted) {
-    terminal->cursor_inverted = terminal->cursor_on;
-    invert_cursor(terminal);
+void terminal_screen_update_blink_counter(struct terminal *terminal) {
+  if (terminal->blink_counter) {
+    terminal->blink_counter--;
+
+    if (!terminal->blink_counter) {
+      if (terminal->blink_on) {
+        terminal->blink_on = false;
+        terminal->blink_counter = BLINK_OFF_COUNTER;
+      } else {
+        terminal->blink_on = true;
+        terminal->blink_counter = BLINK_ON_COUNTER;
+      }
+    }
   }
+}
+
+void terminal_screen_update(struct terminal *terminal) {
+  update_cursor(terminal);
+  update_blink(terminal);
 }
 
 void terminal_screen_set_screen_mode(struct terminal *terminal, bool mode) {
   if (terminal->screen_mode != mode) {
-    terminal->callbacks->screen_swap_colors(DEFAULT_ACTIVE_COLOR,
-                                            DEFAULT_INACTIVE_COLOR);
-
     terminal->screen_mode = mode;
+    draw_screen(terminal);
   }
 }
 
@@ -345,15 +628,15 @@ void terminal_screen_init(struct terminal *terminal) {
   terminal->vs.cursor_col = 0;
   terminal->vs.cursor_last_col = false;
 
-  terminal->vs.font = FONT_NORMAL;
-  terminal->vs.italic = false;
-  terminal->vs.underlined = false;
-  terminal->vs.blink = NO_BLINK;
-  terminal->vs.negative = false;
-  terminal->vs.concealed = false;
-  terminal->vs.crossedout = false;
-  terminal->vs.active_color = DEFAULT_ACTIVE_COLOR;
-  terminal->vs.inactive_color = DEFAULT_INACTIVE_COLOR;
+  terminal->vs.p.font = FONT_NORMAL;
+  terminal->vs.p.italic = false;
+  terminal->vs.p.underlined = false;
+  terminal->vs.p.blink = false;
+  terminal->vs.p.negative = false;
+  terminal->vs.p.concealed = false;
+  terminal->vs.p.crossedout = false;
+  terminal->vs.p.active_color = DEFAULT_ACTIVE_COLOR;
+  terminal->vs.p.inactive_color = DEFAULT_INACTIVE_COLOR;
 
   terminal->margin_top = 0;
   terminal->margin_bottom = ROWS;
@@ -363,7 +646,12 @@ void terminal_screen_init(struct terminal *terminal) {
 
   terminal->cursor_counter = CURSOR_ON_COUNTER;
   terminal->cursor_on = true;
-  terminal->cursor_inverted = false;
+  terminal->cursor_drawn = false;
+
+  terminal->blink_counter = BLINK_ON_COUNTER;
+  terminal->blink_on = true;
+  terminal->blink_drawn = false;
 
   terminal_screen_clear_all(terminal);
+  update_cursor(terminal);
 }
