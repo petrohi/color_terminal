@@ -97,10 +97,11 @@ struct terminal {
   uint8_t ctrl_state : 1;
 
   bool new_line_mode;
-  bool cursor_key_mode; // TODO
+  bool cursor_key_mode;
   bool keyboard_action_mode;
   bool auto_repeat_mode;
   bool send_receive_mode; // TODO
+  bool ansi_mode;
 
   bool auto_wrap_mode;
   bool scrolling_mode; // TODO

@@ -48,6 +48,14 @@ static size_t get_new_line_mode(struct terminal *terminal) {
   return terminal->new_line_mode;
 }
 
+static size_t get_cursor_key_mode(struct terminal *terminal) {
+  return terminal->cursor_key_mode;
+}
+
+static size_t get_ansi_mode(struct terminal *terminal) {
+  return terminal->ansi_mode;
+}
+
 void terminal_update_keyboard_leds(struct terminal *terminal) {
   terminal->callbacks->keyboard_set_leds(terminal->lock_state);
 }
@@ -200,27 +208,35 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_IGNORE,                    // DELETE
     KEY_IGNORE,                    // END1
     KEY_IGNORE,                    // PAGEDOWN
-    KEY_STR("\033[C"),             // RIGHTARROW
-    KEY_STR("\033[D"),             // LEFTARROW
-    KEY_STR("\033[B"),             // DOWNARROW
-    KEY_STR("\033[A"),             // UPARROW
-    KEY_IGNORE,                    // KEYPAD_NUM_LOCK_AND_CLEAR
-    KEY_IGNORE,                    // KEYPAD_SLASH
-    KEY_IGNORE,                    // KEYPAD_ASTERIKS
-    KEY_IGNORE,                    // KEYPAD_MINUS
-    KEY_IGNORE,                    // KEYPAD_PLUS
-    KEY_IGNORE,                    // KEYPAD_ENTER
-    KEY_IGNORE,                    // KEYPAD_1_END
-    KEY_IGNORE,                    // KEYPAD_2_DOWN_ARROW
-    KEY_IGNORE,                    // KEYPAD_3_PAGEDN
-    KEY_IGNORE,                    // KEYPAD_4_LEFT_ARROW
-    KEY_IGNORE,                    // KEYPAD_5
-    KEY_IGNORE,                    // KEYPAD_6_RIGHT_ARROW
-    KEY_IGNORE,                    // KEYPAD_7_HOME
-    KEY_IGNORE,                    // KEYPAD_8_UP_ARROW
-    KEY_IGNORE,                    // KEYPAD_9_PAGEUP
-    KEY_IGNORE,                    // KEYPAD_0_INSERT
-    KEY_IGNORE,                    // KEYPAD_DECIMAL_SEPARATOR_DELETE
+    KEY_ROUTER(get_ansi_mode, KEY_STR("\033C"),
+               KEY_ROUTER(get_cursor_key_mode, KEY_STR("\033[C"),
+                          KEY_STR("\033OC"))), // RIGHTARROW
+    KEY_ROUTER(get_ansi_mode, KEY_STR("\033D"),
+               KEY_ROUTER(get_cursor_key_mode, KEY_STR("\033[D"),
+                          KEY_STR("\033OD"))), // LEFTARROW
+    KEY_ROUTER(get_ansi_mode, KEY_STR("\033B"),
+               KEY_ROUTER(get_cursor_key_mode, KEY_STR("\033[B"),
+                          KEY_STR("\033OB"))), // DOWNARROW
+    KEY_ROUTER(get_ansi_mode, KEY_STR("\033A"),
+               KEY_ROUTER(get_cursor_key_mode, KEY_STR("\033[A"),
+                          KEY_STR("\033OA"))), // UPARROW
+    KEY_IGNORE,                                // KEYPAD_NUM_LOCK_AND_CLEAR
+    KEY_IGNORE,                                // KEYPAD_SLASH
+    KEY_IGNORE,                                // KEYPAD_ASTERIKS
+    KEY_IGNORE,                                // KEYPAD_MINUS
+    KEY_IGNORE,                                // KEYPAD_PLUS
+    KEY_IGNORE,                                // KEYPAD_ENTER
+    KEY_IGNORE,                                // KEYPAD_1_END
+    KEY_IGNORE,                                // KEYPAD_2_DOWN_ARROW
+    KEY_IGNORE,                                // KEYPAD_3_PAGEDN
+    KEY_IGNORE,                                // KEYPAD_4_LEFT_ARROW
+    KEY_IGNORE,                                // KEYPAD_5
+    KEY_IGNORE,                                // KEYPAD_6_RIGHT_ARROW
+    KEY_IGNORE,                                // KEYPAD_7_HOME
+    KEY_IGNORE,                                // KEYPAD_8_UP_ARROW
+    KEY_IGNORE,                                // KEYPAD_9_PAGEUP
+    KEY_IGNORE,                                // KEYPAD_0_INSERT
+    KEY_IGNORE, // KEYPAD_DECIMAL_SEPARATOR_DELETE
 };
 
 static void handle_key(struct terminal *terminal,
@@ -312,4 +328,5 @@ void terminal_keyboard_init(struct terminal *terminal) {
   terminal->keyboard_action_mode = false;
   terminal->auto_repeat_mode = true;
   terminal->send_receive_mode = false;
+  terminal->ansi_mode = true;
 }

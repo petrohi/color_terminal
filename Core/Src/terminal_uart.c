@@ -701,7 +701,7 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
     break;
 
   case 2: // DECANM
-    terminal->cursor_key_mode = true;
+    terminal->ansi_mode = true;
     break;
 
   case 3: // DECCOLM
@@ -738,6 +738,11 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
     terminal_screen_enable_cursor(terminal, true);
     break;
 
+  case 66: // DECNKM
+    terminal->lock_state.num = 0;
+    terminal_update_keyboard_leds(terminal);
+    break;
+
 #ifdef DEBUG
   default:
     terminal->unhandled = true;
@@ -756,7 +761,7 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
     break;
 
   case 2: // DECANM
-    terminal->cursor_key_mode = false;
+    terminal->ansi_mode = false;
     break;
 
   case 3: // DECCOLM
@@ -791,6 +796,11 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
 
   case 25: // DECTCEM
     terminal_screen_enable_cursor(terminal, false);
+    break;
+
+  case 66: // DECNKM
+    terminal->lock_state.num = 1;
+    terminal_update_keyboard_leds(terminal);
     break;
 
 #ifdef DEBUG
