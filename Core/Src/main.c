@@ -150,12 +150,12 @@ static void test_mandelbrot() {
 }
 */
 
-static void screen_draw_character_callback(size_t row, size_t col,
-                                           character_t character,
+static void screen_draw_codepoint_callback(size_t row, size_t col,
+                                           codepoint_t codepoint,
                                            enum font font, bool italic,
                                            bool underlined, bool crossedout,
                                            color_t active, color_t inactive) {
-  screen_draw_character(ltdc_get_screen(), row, col, character, font, italic,
+  screen_draw_codepoint(ltdc_get_screen(), row, col, codepoint, font, italic,
                         underlined, crossedout, active, inactive);
 }
 
@@ -175,16 +175,14 @@ static void screen_scroll_callback(enum scroll scroll, size_t from_row,
   screen_scroll(ltdc_get_screen(), scroll, from_row, to_row, rows, inactive);
 }
 
-static void screen_shift_characters_right_callback(size_t row, size_t col,
-                                                   size_t cols,
-                                                   color_t inactive) {
-  screen_shift_characters_right(ltdc_get_screen(), row, col, cols, inactive);
+static void screen_shift_right_callback(size_t row, size_t col, size_t cols,
+                                        color_t inactive) {
+  screen_shift_right(ltdc_get_screen(), row, col, cols, inactive);
 }
 
-static void screen_shift_characters_left_callback(size_t row, size_t col,
-                                                  size_t cols,
-                                                  color_t inactive) {
-  screen_shift_characters_left(ltdc_get_screen(), row, col, cols, inactive);
+static void screen_shift_left_callback(size_t row, size_t col, size_t cols,
+                                       color_t inactive) {
+  screen_shift_left(ltdc_get_screen(), row, col, cols, inactive);
 }
 
 struct terminal *global_terminal;
@@ -239,12 +237,12 @@ int main(void)
       .keyboard_set_leds = keyboard_set_leds,
       .uart_transmit = uart_transmit,
       .uart_receive = uart_receive,
-      .screen_draw_character = screen_draw_character_callback,
+      .screen_draw_codepoint = screen_draw_codepoint_callback,
       .screen_clear_rows = screen_clear_rows_callback,
       .screen_clear_cols = screen_clear_cols_callback,
       .screen_scroll = screen_scroll_callback,
-      .screen_shift_characters_left = screen_shift_characters_left_callback,
-      .screen_shift_characters_right = screen_shift_characters_right_callback,
+      .screen_shift_left = screen_shift_left_callback,
+      .screen_shift_right = screen_shift_right_callback,
       .system_reset = HAL_NVIC_SystemReset};
   terminal_init(&terminal, &callbacks, transmit_buffer, TRANSMIT_BUFFER_SIZE,
                 receive_buffer, RECEIVE_BUFFER_SIZE);

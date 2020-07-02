@@ -26,8 +26,8 @@ void screen_clear_cols(struct screen *screen, size_t row, size_t from_col,
 void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
                    size_t to_row, size_t rows, color_t inactive);
 
-void screen_draw_character(struct screen *screen, size_t row, size_t col,
-                           uint8_t character, enum font font, bool italic,
+void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
+                           codepoint_t codepoint, enum font font, bool italic,
                            bool underlined, bool crossedout, color_t active,
                            color_t inactive);
 
@@ -38,10 +38,10 @@ void screen_test_mandelbrot(struct screen *screen, float window_x,
 
 void screen_test_colors(struct screen *screen);
 
-void screen_shift_characters_right(struct screen *screen, size_t row,
-                                   size_t col, size_t cols, color_t inactive);
+void screen_shift_right(struct screen *screen, size_t row, size_t col,
+                        size_t cols, color_t inactive);
 
-void screen_shift_characters_left(struct screen *screen, size_t row, size_t col,
-                                  size_t cols, color_t inactive);
+void screen_shift_left(struct screen *screen, size_t row, size_t col,
+                       size_t cols, color_t inactive);
 
 #endif

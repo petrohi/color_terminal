@@ -57,8 +57,8 @@ void terminal_screen_index(struct terminal *terminal, int16_t rows);
 
 void terminal_screen_reverse_index(struct terminal *terminal, int16_t rows);
 
-void terminal_screen_put_character(struct terminal *terminal,
-                                   character_t character);
+void terminal_screen_put_codepoint(struct terminal *terminal,
+                                   codepoint_t codepoint);
 
 void terminal_screen_enable_cursor(struct terminal *terminal, bool enable);
 

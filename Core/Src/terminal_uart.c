@@ -683,7 +683,7 @@ static void receive_decaln(struct terminal *terminal, character_t character) {
   for (size_t row = 0; row < ROWS; ++row)
     for (size_t col = 0; col < COLS; ++col) {
       terminal_screen_move_cursor_absolute(terminal, row, col);
-      terminal_screen_put_character(terminal, 'E');
+      terminal_screen_put_codepoint(terminal, (codepoint_t)'E');
     }
 
   terminal_screen_move_cursor_absolute(terminal, 0, 0);
@@ -861,9 +861,35 @@ static void receive_vt52_ansi(struct terminal *terminal,
   clear_receive_table(terminal);
 }
 
+static size_t get_utf8_codepoint_length(character_t character) { return 1; }
+
+static codepoint_t decode_utf8_codepoint(character_t *buffer, size_t length) {
+  return 0;
+}
+
 static void receive_printable(struct terminal *terminal,
                               character_t character) {
-  terminal_screen_put_character(terminal, character);
+
+  if (terminal->utf8_codepoint_length == 0) {
+    size_t length = get_utf8_codepoint_length(character);
+
+    if (length > 1) {
+      terminal->utf8_codepoint_length = length;
+      terminal->utf8_buffer[terminal->utf8_buffer_length++] = character;
+    } else if (length == 1)
+      terminal_screen_put_codepoint(terminal, (codepoint_t)character);
+  } else {
+    terminal->utf8_buffer[terminal->utf8_buffer_length++] = character;
+    if (terminal->utf8_buffer_length == terminal->utf8_codepoint_length) {
+      terminal_screen_put_codepoint(
+          terminal, decode_utf8_codepoint(terminal->utf8_buffer,
+                                          terminal->utf8_codepoint_length));
+
+      terminal->utf8_codepoint_length = 0;
+      terminal->utf8_buffer_length = 0;
+      memset(terminal->utf8_buffer, 0, 4);
+    }
+  }
 }
 
 static void receive_ignore(struct terminal *terminal, character_t character) {}
@@ -1140,6 +1166,11 @@ void terminal_uart_init(struct terminal *terminal) {
   terminal->uart_receive_count = terminal->receive_buffer_size;
   terminal->callbacks->uart_receive(terminal->receive_buffer,
                                     terminal->receive_buffer_size);
+
+  terminal->utf8_codepoint_length = 0;
+  terminal->utf8_buffer_length = 0;
+  memset(terminal->utf8_buffer, 0, 4);
+
 #ifdef DEBUG
   memset(terminal->debug_buffer, 0, DEBUG_BUFFER_LENGTH);
   terminal->debug_buffer_length = 0;

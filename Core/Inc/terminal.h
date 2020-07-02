@@ -19,6 +19,7 @@ enum font {
 enum scroll { SCROLL_UP, SCROLL_DOWN };
 typedef uint8_t color_t;
 typedef uint8_t character_t;
+typedef uint16_t codepoint_t;
 
 #define DEFAULT_ACTIVE_COLOR 0xf
 #define DEFAULT_INACTIVE_COLOR 0
@@ -31,7 +32,7 @@ struct terminal_callbacks {
   void (*keyboard_set_leds)(struct lock_state state);
   void (*uart_transmit)(void *data, uint16_t size);
   void (*uart_receive)(void *data, uint16_t size);
-  void (*screen_draw_character)(size_t row, size_t col, character_t character,
+  void (*screen_draw_codepoint)(size_t row, size_t col, codepoint_t codepoint,
                                 enum font font, bool italic, bool underlined,
                                 bool crossedout, color_t active,
                                 color_t inactive);
@@ -40,10 +41,10 @@ struct terminal_callbacks {
                             color_t inactive);
   void (*screen_scroll)(enum scroll scroll, size_t from_row, size_t to_row,
                         size_t rows, color_t inactive);
-  void (*screen_shift_characters_right)(size_t row, size_t col, size_t cols,
-                                        color_t inactive);
-  void (*screen_shift_characters_left)(size_t row, size_t col, size_t cols,
-                                       color_t inactive);
+  void (*screen_shift_right)(size_t row, size_t col, size_t cols,
+                             color_t inactive);
+  void (*screen_shift_left)(size_t row, size_t col, size_t cols,
+                            color_t inactive);
   void (*system_reset)();
 };
 
@@ -71,7 +72,7 @@ struct visual_props {
 };
 
 struct visual_cell {
-  character_t c;
+  codepoint_t c;
   struct visual_props p;
 };
 
@@ -143,6 +144,10 @@ struct terminal {
 
   character_t *receive_buffer;
   size_t receive_buffer_size;
+
+  size_t utf8_codepoint_length;
+  size_t utf8_buffer_length;
+  character_t utf8_buffer[4];
 
 #ifdef DEBUG
 #define DEBUG_BUFFER_LENGTH 128

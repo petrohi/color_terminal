@@ -152,7 +152,7 @@ static void render_character(struct terminal *terminal, int16_t row,
     active = inactive;
   }
 
-  terminal->callbacks->screen_draw_character(
+  terminal->callbacks->screen_draw_codepoint(
       row, col, cell->c, cell->p.font, cell->p.italic, cell->p.underlined,
       cell->p.crossedout, active, inactive);
 }
@@ -212,12 +212,12 @@ static void update_blink(struct terminal *terminal) {
   draw_blink(terminal, terminal->blink_on);
 }
 
-static void draw_character(struct terminal *terminal, uint8_t character) {
+static void draw_codepoint(struct terminal *terminal, codepoint_t codepoint) {
   struct visual_cell *cell =
       get_cell(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col);
 
   cell->p = terminal->vs.p;
-  cell->c = character;
+  cell->c = codepoint;
 
   render_character(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
                    terminal->cursor_drawn,
@@ -228,11 +228,11 @@ static void draw_screen(struct terminal *terminal) {
   for (int16_t row = 0; row < ROWS; ++row)
     for (int16_t col = 0; col < COLS; ++col) {
       struct visual_cell *cell = get_cell(terminal, row, col);
-      render_character(
-          terminal, row, col,
-          terminal->cursor_drawn && terminal->vs.cursor_row == row &&
-              terminal->vs.cursor_col == col,
-          terminal->blink_drawn && cell->p.blink);
+      render_character(terminal, row, col,
+                       terminal->cursor_drawn &&
+                           terminal->vs.cursor_row == row &&
+                           terminal->vs.cursor_col == col,
+                       terminal->blink_drawn && cell->p.blink);
     }
 }
 
@@ -474,8 +474,8 @@ void terminal_screen_reverse_index(struct terminal *terminal, int16_t rows) {
   update_cursor(terminal);
 }
 
-void terminal_screen_put_character(struct terminal *terminal,
-                                   character_t character) {
+void terminal_screen_put_codepoint(struct terminal *terminal,
+                                   codepoint_t codepoint) {
   if (terminal->vs.cursor_last_col) {
     terminal_screen_carriage_return(terminal);
     terminal_screen_index(terminal, 1);
@@ -486,7 +486,7 @@ void terminal_screen_put_character(struct terminal *terminal,
 
   clear_cursor(terminal);
 
-  draw_character(terminal, character);
+  draw_codepoint(terminal, codepoint);
 
   if (terminal->vs.cursor_col == COLS - 1) {
     if (terminal->auto_wrap_mode)
@@ -501,9 +501,9 @@ void terminal_screen_insert(struct terminal *terminal, size_t cols) {
   clear_cursor(terminal);
   clear_blink(terminal);
 
-  terminal->callbacks->screen_shift_characters_right(
-      terminal->vs.cursor_row, terminal->vs.cursor_col, cols,
-      inactive_color(terminal));
+  terminal->callbacks->screen_shift_right(terminal->vs.cursor_row,
+                                          terminal->vs.cursor_col, cols,
+                                          inactive_color(terminal));
 
   shift_cells_right(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
                     cols);
@@ -516,9 +516,9 @@ void terminal_screen_delete(struct terminal *terminal, size_t cols) {
   clear_cursor(terminal);
   clear_blink(terminal);
 
-  terminal->callbacks->screen_shift_characters_left(
-      terminal->vs.cursor_row, terminal->vs.cursor_col, cols,
-      inactive_color(terminal));
+  terminal->callbacks->screen_shift_left(terminal->vs.cursor_row,
+                                         terminal->vs.cursor_col, cols,
+                                         inactive_color(terminal));
 
   shift_cells_left(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
                    cols);

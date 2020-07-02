@@ -36,8 +36,8 @@ void screen_clear_cols(struct screen *screen, size_t row, size_t from_col,
     memset(screen->buffer + offset + (SCREEN_WIDTH * i), inactive, size);
 }
 
-void screen_shift_characters_right(struct screen *screen, size_t row,
-                                   size_t col, size_t cols, color_t inactive) {
+void screen_shift_right(struct screen *screen, size_t row, size_t col,
+                        size_t cols, color_t inactive) {
   if (row >= ROWS)
     return;
 
@@ -60,8 +60,8 @@ void screen_shift_characters_right(struct screen *screen, size_t row,
   screen_clear_cols(screen, row, col, col + cols, inactive);
 }
 
-void screen_shift_characters_left(struct screen *screen, size_t row, size_t col,
-                                  size_t cols, color_t inactive) {
+void screen_shift_left(struct screen *screen, size_t row, size_t col,
+                       size_t cols, color_t inactive) {
   if (row >= ROWS)
     return;
 
@@ -114,8 +114,8 @@ void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
   }
 }
 
-void screen_draw_character(struct screen *screen, size_t row, size_t col,
-                           uint8_t character, enum font font, bool italic,
+void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
+                           codepoint_t codepoint, enum font font, bool italic,
                            bool underlined, bool crossedout, color_t active,
                            color_t inactive) {
   if (row >= ROWS)
@@ -124,19 +124,20 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
   if (col >= COLS)
     return;
 
-  if (character >= 0x20 && character <= 0x7e) {
-    character -= 0x1f;
-  } else if (character == 0xa0) {
-    character = 1;
-  } else if (character >= 0xa1 && character <= 0xff) {
-    character -= 0x41;
+  if (codepoint >= 0x20 && codepoint <= 0x7e) {
+    codepoint -= 0x1f;
+  } else if (codepoint == 0xa0) {
+    codepoint = 1;
+  } else if (codepoint >= 0xa1 && codepoint <= 0xff) {
+    codepoint -= 0x41;
   } else {
-    character = 0;
+    codepoint = 0;
   }
 
   size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
   const FontRow *font_data =
-      (font == FONT_BOLD ? FontBoldData : (italic ? FontItalicData : FontData));
+      (font == FONT_BOLD ? bold_font_data
+                         : (italic ? italic_font_data : normal_font_data));
 
   for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++) {
     for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
@@ -149,7 +150,7 @@ void screen_draw_character(struct screen *screen, size_t row, size_t col,
           (crossedout && char_y == CHAR_HEIGHT / 2) ||
 
           (char_x < FONT_WIDTH &&
-           font_data[character * FONT_HEIGHT + char_y] & (1 << char_x))) {
+           font_data[codepoint * FONT_HEIGHT + char_y] & (1 << char_x))) {
 
         color = active;
       }
@@ -177,10 +178,10 @@ void screen_test_fonts(struct screen *screen) {
   for (size_t i = 0; i < 5; i++) {
     for (size_t row = 0; row < 16; row++) {
       for (size_t col = 0; col < 16; col++) {
-        uint8_t character = ((row * 16) + col);
+        codepoint_t codepoint = ((row * 16) + col);
 
-        screen_draw_character(
-            screen, row, col + 16 * i, character, font_tests[i].font,
+        screen_draw_codepoint(
+            screen, row, col + 16 * i, codepoint, font_tests[i].font,
             font_tests[i].italic, font_tests[i].underlined,
             font_tests[i].crossedout, font_tests[i].active, 0);
       }
