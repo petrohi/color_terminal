@@ -6,20 +6,22 @@
 
 #define PRINTF_BUFFER_SIZE 64
 
-static void clear_csi_params(struct terminal *terminal) {
-  memset(terminal->csi_params, 0, CSI_MAX_PARAMS_COUNT * CSI_MAX_PARAM_LENGTH);
-  terminal->csi_params_count = 0;
-  terminal->csi_last_param_length = 0;
+static void clear_esc_params(struct terminal *terminal) {
+  memset(terminal->esc_params, 0, ESC_MAX_PARAMS_COUNT * ESC_MAX_PARAM_LENGTH);
+  terminal->esc_params_count = 0;
+  terminal->esc_last_param_length = 0;
+  terminal->vt52_move_cursor_row = 0;
 }
 
-static uint16_t get_csi_param(struct terminal *terminal, size_t index) {
-  return atoi((const char *)terminal->csi_params[index]);
+static int16_t get_esc_param(struct terminal *terminal, size_t index) {
+  return atoi((const char *)terminal->esc_params[index]);
 }
 
 static const receive_table_t default_receive_table;
 
 static void clear_receive_table(struct terminal *terminal) {
   terminal->receive_table = &default_receive_table;
+  clear_esc_params(terminal);
 
 #ifdef DEBUG
   if (terminal->unhandled)
@@ -30,6 +32,7 @@ static void clear_receive_table(struct terminal *terminal) {
 }
 
 static const receive_table_t esc_receive_table;
+static const receive_table_t vt52_esc_receive_table;
 
 static void receive_esc(struct terminal *terminal, character_t character) {
   if (terminal->receive_table != &default_receive_table) {
@@ -39,7 +42,10 @@ static void receive_esc(struct terminal *terminal, character_t character) {
     clear_receive_table(terminal);
   }
 
-  terminal->receive_table = &esc_receive_table;
+  if (terminal->ansi_mode)
+    terminal->receive_table = &esc_receive_table;
+  else
+    terminal->receive_table = &vt52_esc_receive_table;
 
 #ifdef DEBUG
   memset(terminal->debug_buffer, 0, DEBUG_BUFFER_LENGTH);
@@ -107,7 +113,6 @@ static const receive_table_t csi_receive_table;
 
 static void receive_csi(struct terminal *terminal, character_t character) {
   terminal->receive_table = &csi_receive_table;
-  clear_csi_params(terminal);
 }
 
 static const receive_table_t esc_hash_receive_table;
@@ -152,35 +157,35 @@ static void receive_scs_g1(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
-static void receive_csi_param(struct terminal *terminal,
+static void receive_esc_param(struct terminal *terminal,
                               character_t character) {
-  if (!terminal->csi_last_param_length) {
-    if (terminal->csi_params_count == CSI_MAX_PARAMS_COUNT)
+  if (!terminal->esc_last_param_length) {
+    if (terminal->esc_params_count == ESC_MAX_PARAMS_COUNT)
       return;
 
-    terminal->csi_params_count++;
+    terminal->esc_params_count++;
   }
 
   // Keep zero for the end of the string for atoi
-  if (terminal->csi_last_param_length == CSI_MAX_PARAM_LENGTH - 1)
+  if (terminal->esc_last_param_length == ESC_MAX_PARAM_LENGTH - 1)
     return;
 
-  terminal->csi_last_param_length++;
-  terminal->csi_params[terminal->csi_params_count - 1]
-                      [terminal->csi_last_param_length - 1] = character;
+  terminal->esc_last_param_length++;
+  terminal->esc_params[terminal->esc_params_count - 1]
+                      [terminal->esc_last_param_length - 1] = character;
 }
 
-static void receive_csi_param_delimiter(struct terminal *terminal,
+static void receive_esc_param_delimiter(struct terminal *terminal,
                                         character_t character) {
-  if (!terminal->csi_last_param_length) {
-    if (terminal->csi_params_count == CSI_MAX_PARAMS_COUNT)
+  if (!terminal->esc_last_param_length) {
+    if (terminal->esc_params_count == ESC_MAX_PARAMS_COUNT)
       return;
 
-    terminal->csi_params_count++;
+    terminal->esc_params_count++;
     return;
   }
 
-  terminal->csi_last_param_length = 0;
+  terminal->esc_last_param_length = 0;
 }
 
 static void receive_da(struct terminal *terminal, character_t character) {
@@ -189,15 +194,15 @@ static void receive_da(struct terminal *terminal, character_t character) {
 }
 
 static void receive_hvp(struct terminal *terminal, character_t character) {
-  int16_t row = get_csi_param(terminal, 0);
-  int16_t col = get_csi_param(terminal, 1);
+  int16_t row = get_esc_param(terminal, 0);
+  int16_t col = get_esc_param(terminal, 1);
 
   terminal_screen_move_cursor_absolute(terminal, row - 1, col - 1);
   clear_receive_table(terminal);
 }
 
 static void receive_tbc(struct terminal *terminal, character_t character) {
-  int16_t mode = get_csi_param(terminal, 0);
+  int16_t mode = get_esc_param(terminal, 0);
 
   if (mode == 0)
     terminal->tab_stops[get_terminal_screen_cursor_col(terminal)] = false;
@@ -212,7 +217,7 @@ static void receive_tbc(struct terminal *terminal, character_t character) {
 }
 
 static void receive_hpa(struct terminal *terminal, character_t character) {
-  int16_t col = get_csi_param(terminal, 0);
+  int16_t col = get_esc_param(terminal, 0);
 
   terminal_screen_move_cursor_absolute(
       terminal, get_terminal_screen_cursor_row(terminal), col - 1);
@@ -220,7 +225,7 @@ static void receive_hpa(struct terminal *terminal, character_t character) {
 }
 
 static void receive_vpa(struct terminal *terminal, character_t character) {
-  int16_t row = get_csi_param(terminal, 0);
+  int16_t row = get_esc_param(terminal, 0);
 
   terminal_screen_move_cursor_absolute(
       terminal, row - 1, get_terminal_screen_cursor_col(terminal));
@@ -228,7 +233,7 @@ static void receive_vpa(struct terminal *terminal, character_t character) {
 }
 
 static void receive_sm(struct terminal *terminal, character_t character) {
-  int16_t mode = get_csi_param(terminal, 0);
+  int16_t mode = get_esc_param(terminal, 0);
 
   switch (mode) {
   case 2: // KAM
@@ -257,7 +262,7 @@ static void receive_sm(struct terminal *terminal, character_t character) {
 }
 
 static void receive_rm(struct terminal *terminal, character_t character) {
-  int16_t mode = get_csi_param(terminal, 0);
+  int16_t mode = get_esc_param(terminal, 0);
 
   switch (mode) {
   case 2: // KAM
@@ -286,7 +291,7 @@ static void receive_rm(struct terminal *terminal, character_t character) {
 }
 
 static void receive_dsr(struct terminal *terminal, character_t character) {
-  uint16_t code = get_csi_param(terminal, 0);
+  uint16_t code = get_esc_param(terminal, 0);
 
   switch (code) {
   case 5:
@@ -314,22 +319,22 @@ static void receive_dectst(struct terminal *terminal, character_t character) {
 }
 
 static void receive_cup(struct terminal *terminal, character_t character) {
-  int16_t row = get_csi_param(terminal, 0);
-  int16_t col = get_csi_param(terminal, 1);
+  int16_t row = get_esc_param(terminal, 0);
+  int16_t col = get_esc_param(terminal, 1);
 
   terminal_screen_move_cursor_absolute(terminal, row - 1, col - 1);
   clear_receive_table(terminal);
 }
 
 static color_t get_sgr_color(struct terminal *terminal, size_t *i) {
-  uint16_t code = get_csi_param(terminal, (*i)++);
+  uint16_t code = get_esc_param(terminal, (*i)++);
 
   if (code == 5) {
-    return get_csi_param(terminal, (*i)++);
+    return get_esc_param(terminal, (*i)++);
   } else if (code == 2) {
-    get_csi_param(terminal, (*i)++);
-    get_csi_param(terminal, (*i)++);
-    get_csi_param(terminal, (*i)++);
+    get_esc_param(terminal, (*i)++);
+    get_esc_param(terminal, (*i)++);
+    get_esc_param(terminal, (*i)++);
 
     // TODO: get the closest color from CLUT
 #ifdef DEBUG
@@ -340,7 +345,7 @@ static color_t get_sgr_color(struct terminal *terminal, size_t *i) {
 }
 
 static void handle_sgr(struct terminal *terminal, size_t *i) {
-  uint16_t code = get_csi_param(terminal, (*i)++);
+  uint16_t code = get_esc_param(terminal, (*i)++);
   bool unhandled = false;
 
   switch (code) {
@@ -458,8 +463,8 @@ static void handle_sgr(struct terminal *terminal, size_t *i) {
 
 static void receive_sgr(struct terminal *terminal, character_t character) {
   size_t i = 0;
-  if (terminal->csi_params_count) {
-    while (i < terminal->csi_params_count)
+  if (terminal->esc_params_count) {
+    while (i < terminal->esc_params_count)
       handle_sgr(terminal, &i);
   } else
     handle_sgr(terminal, &i);
@@ -468,7 +473,7 @@ static void receive_sgr(struct terminal *terminal, character_t character) {
 }
 
 static void receive_cuu(struct terminal *terminal, character_t character) {
-  int16_t rows = get_csi_param(terminal, 0);
+  int16_t rows = get_esc_param(terminal, 0);
   if (!rows)
     rows = 1;
 
@@ -477,7 +482,7 @@ static void receive_cuu(struct terminal *terminal, character_t character) {
 }
 
 static void receive_cud(struct terminal *terminal, character_t character) {
-  int16_t rows = get_csi_param(terminal, 0);
+  int16_t rows = get_esc_param(terminal, 0);
   if (!rows)
     rows = 1;
 
@@ -486,7 +491,7 @@ static void receive_cud(struct terminal *terminal, character_t character) {
 }
 
 static void receive_cuf(struct terminal *terminal, character_t character) {
-  int16_t cols = get_csi_param(terminal, 0);
+  int16_t cols = get_esc_param(terminal, 0);
   if (!cols)
     cols = 1;
 
@@ -495,7 +500,7 @@ static void receive_cuf(struct terminal *terminal, character_t character) {
 }
 
 static void receive_cub(struct terminal *terminal, character_t character) {
-  int16_t cols = get_csi_param(terminal, 0);
+  int16_t cols = get_esc_param(terminal, 0);
   if (!cols)
     cols = 1;
 
@@ -504,7 +509,7 @@ static void receive_cub(struct terminal *terminal, character_t character) {
 }
 
 static void receive_cnl(struct terminal *terminal, character_t character) {
-  int16_t rows = get_csi_param(terminal, 0);
+  int16_t rows = get_esc_param(terminal, 0);
   if (!rows)
     rows = 1;
 
@@ -514,7 +519,7 @@ static void receive_cnl(struct terminal *terminal, character_t character) {
 }
 
 static void receive_cpl(struct terminal *terminal, character_t character) {
-  int16_t rows = get_csi_param(terminal, 0);
+  int16_t rows = get_esc_param(terminal, 0);
   if (!rows)
     rows = 1;
 
@@ -524,7 +529,7 @@ static void receive_cpl(struct terminal *terminal, character_t character) {
 }
 
 static void receive_cha(struct terminal *terminal, character_t character) {
-  int16_t col = get_csi_param(terminal, 0);
+  int16_t col = get_esc_param(terminal, 0);
 
   terminal_screen_move_cursor_absolute(
       terminal, get_terminal_screen_cursor_row(terminal), col - 1);
@@ -532,7 +537,7 @@ static void receive_cha(struct terminal *terminal, character_t character) {
 }
 
 static void receive_sd(struct terminal *terminal, character_t character) {
-  int16_t rows = get_csi_param(terminal, 0);
+  int16_t rows = get_esc_param(terminal, 0);
   if (!rows)
     rows = 1;
 
@@ -541,7 +546,7 @@ static void receive_sd(struct terminal *terminal, character_t character) {
 }
 
 static void receive_su(struct terminal *terminal, character_t character) {
-  int16_t rows = get_csi_param(terminal, 0);
+  int16_t rows = get_esc_param(terminal, 0);
   if (!rows)
     rows = 1;
 
@@ -550,7 +555,7 @@ static void receive_su(struct terminal *terminal, character_t character) {
 }
 
 static void receive_ed(struct terminal *terminal, character_t character) {
-  uint16_t code = get_csi_param(terminal, 0);
+  uint16_t code = get_esc_param(terminal, 0);
 
   switch (code) {
   case 0:
@@ -582,7 +587,7 @@ static void receive_ed(struct terminal *terminal, character_t character) {
 }
 
 static void receive_el(struct terminal *terminal, character_t character) {
-  uint16_t code = get_csi_param(terminal, 0);
+  uint16_t code = get_esc_param(terminal, 0);
 
   switch (code) {
   case 0:
@@ -609,7 +614,7 @@ static void receive_el(struct terminal *terminal, character_t character) {
 }
 
 static void receive_ich(struct terminal *terminal, character_t character) {
-  int16_t cols = get_csi_param(terminal, 0);
+  int16_t cols = get_esc_param(terminal, 0);
   if (!cols)
     cols = 1;
 
@@ -618,7 +623,7 @@ static void receive_ich(struct terminal *terminal, character_t character) {
 }
 
 static void receive_dch(struct terminal *terminal, character_t character) {
-  int16_t cols = get_csi_param(terminal, 0);
+  int16_t cols = get_esc_param(terminal, 0);
   if (!cols)
     cols = 1;
 
@@ -627,7 +632,7 @@ static void receive_dch(struct terminal *terminal, character_t character) {
 }
 
 static void receive_ech(struct terminal *terminal, character_t character) {
-  int16_t cols = get_csi_param(terminal, 0);
+  int16_t cols = get_esc_param(terminal, 0);
   if (!cols)
     cols = 1;
 
@@ -636,7 +641,7 @@ static void receive_ech(struct terminal *terminal, character_t character) {
 }
 
 static void receive_il(struct terminal *terminal, character_t character) {
-  int16_t rows = get_csi_param(terminal, 0);
+  int16_t rows = get_esc_param(terminal, 0);
   if (!rows)
     rows = 1;
 
@@ -646,7 +651,7 @@ static void receive_il(struct terminal *terminal, character_t character) {
 }
 
 static void receive_dl(struct terminal *terminal, character_t character) {
-  int16_t rows = get_csi_param(terminal, 0);
+  int16_t rows = get_esc_param(terminal, 0);
   if (!rows)
     rows = 1;
 
@@ -656,8 +661,8 @@ static void receive_dl(struct terminal *terminal, character_t character) {
 }
 
 static void receive_decstbm(struct terminal *terminal, character_t character) {
-  int16_t top = get_csi_param(terminal, 0);
-  int16_t bottom = get_csi_param(terminal, 1);
+  int16_t top = get_esc_param(terminal, 0);
+  int16_t bottom = get_esc_param(terminal, 1);
 
   if (top)
     top--;
@@ -693,7 +698,7 @@ static void receive_csi_decmod(struct terminal *terminal,
 }
 
 static void receive_decsm(struct terminal *terminal, character_t character) {
-  int16_t mode = get_csi_param(terminal, 0);
+  int16_t mode = get_esc_param(terminal, 0);
 
   switch (mode) {
   case 1: // DECCKM
@@ -753,7 +758,7 @@ static void receive_decsm(struct terminal *terminal, character_t character) {
 }
 
 static void receive_decrm(struct terminal *terminal, character_t character) {
-  int16_t mode = get_csi_param(terminal, 0);
+  int16_t mode = get_esc_param(terminal, 0);
 
   switch (mode) {
   case 1: // DECCKM
@@ -821,6 +826,39 @@ static void receive_osc(struct terminal *terminal, character_t character) {
 static void receive_osc_data(struct terminal *terminal, character_t character) {
   if (character == '\x07')
     clear_receive_table(terminal);
+}
+
+static const receive_table_t vt52_move_cursor_row_receive_table;
+
+static void receive_vt52_move_cursor(struct terminal *terminal,
+                                     character_t character) {
+  terminal->receive_table = &vt52_move_cursor_row_receive_table;
+}
+
+static const receive_table_t vt52_move_cursor_col_receive_table;
+
+static void receive_vt52_move_cursor_row(struct terminal *terminal,
+                                         character_t character) {
+  terminal->vt52_move_cursor_row = character;
+  terminal->receive_table = &vt52_move_cursor_col_receive_table;
+}
+
+static void receive_vt52_move_cursor_col(struct terminal *terminal,
+                                         character_t character) {
+  terminal_screen_move_cursor_absolute(
+      terminal, terminal->vt52_move_cursor_row - 32, character - 32);
+  clear_receive_table(terminal);
+}
+
+static void receive_vt52_id(struct terminal *terminal, character_t character) {
+  terminal_uart_transmit_string(terminal, "\x1b/Z");
+  clear_receive_table(terminal);
+}
+
+static void receive_vt52_ansi(struct terminal *terminal,
+                              character_t character) {
+  terminal->ansi_mode = true;
+  clear_receive_table(terminal);
 }
 
 static void receive_printable(struct terminal *terminal,
@@ -920,6 +958,7 @@ static const receive_table_t esc_receive_table = {
     RECEIVE_HANDLER('D', receive_ind),
     RECEIVE_HANDLER('H', receive_hts),
     RECEIVE_HANDLER('M', receive_ri),
+    RECEIVE_HANDLER('Z', receive_da),
     RECEIVE_HANDLER('7', receive_decsc),
     RECEIVE_HANDLER('8', receive_decrc),
     RECEIVE_HANDLER('(', receive_si),
@@ -927,22 +966,48 @@ static const receive_table_t esc_receive_table = {
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
-#define CSI_RECEIVE_TABLE                                                      \
-  RECEIVE_HANDLER('0', receive_csi_param),                                     \
-      RECEIVE_HANDLER('1', receive_csi_param),                                 \
-      RECEIVE_HANDLER('2', receive_csi_param),                                 \
-      RECEIVE_HANDLER('3', receive_csi_param),                                 \
-      RECEIVE_HANDLER('4', receive_csi_param),                                 \
-      RECEIVE_HANDLER('5', receive_csi_param),                                 \
-      RECEIVE_HANDLER('6', receive_csi_param),                                 \
-      RECEIVE_HANDLER('7', receive_csi_param),                                 \
-      RECEIVE_HANDLER('8', receive_csi_param),                                 \
-      RECEIVE_HANDLER('9', receive_csi_param),                                 \
-      RECEIVE_HANDLER(';', receive_csi_param_delimiter)
+static const receive_table_t vt52_esc_receive_table = {
+    DEFAULT_RECEIVE_TABLE,
+    RECEIVE_HANDLER('A', receive_cuu),
+    RECEIVE_HANDLER('B', receive_cud),
+    RECEIVE_HANDLER('C', receive_cuf),
+    RECEIVE_HANDLER('D', receive_cub),
+    RECEIVE_HANDLER('H', receive_cup),
+    RECEIVE_HANDLER('I', receive_ri),
+    RECEIVE_HANDLER('J', receive_ed),
+    RECEIVE_HANDLER('K', receive_el),
+    RECEIVE_HANDLER('Y', receive_vt52_move_cursor),
+    RECEIVE_HANDLER('Z', receive_vt52_id),
+    RECEIVE_HANDLER('=', receive_deckpam),
+    RECEIVE_HANDLER('>', receive_deckpnm),
+    RECEIVE_HANDLER('<', receive_vt52_ansi),
+    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
+};
+
+static const receive_table_t vt52_move_cursor_row_receive_table = {
+    DEFAULT_RECEIVE_HANDLER(receive_vt52_move_cursor_row),
+};
+
+static const receive_table_t vt52_move_cursor_col_receive_table = {
+    DEFAULT_RECEIVE_HANDLER(receive_vt52_move_cursor_col),
+};
+
+#define ESC_PARAM_RECEIVE_TABLE                                                \
+  RECEIVE_HANDLER('0', receive_esc_param),                                     \
+      RECEIVE_HANDLER('1', receive_esc_param),                                 \
+      RECEIVE_HANDLER('2', receive_esc_param),                                 \
+      RECEIVE_HANDLER('3', receive_esc_param),                                 \
+      RECEIVE_HANDLER('4', receive_esc_param),                                 \
+      RECEIVE_HANDLER('5', receive_esc_param),                                 \
+      RECEIVE_HANDLER('6', receive_esc_param),                                 \
+      RECEIVE_HANDLER('7', receive_esc_param),                                 \
+      RECEIVE_HANDLER('8', receive_esc_param),                                 \
+      RECEIVE_HANDLER('9', receive_esc_param),                                 \
+      RECEIVE_HANDLER(';', receive_esc_param_delimiter)
 
 static const receive_table_t csi_receive_table = {
     DEFAULT_RECEIVE_TABLE,
-    CSI_RECEIVE_TABLE,
+    ESC_PARAM_RECEIVE_TABLE,
     RECEIVE_HANDLER('`', receive_hpa),
     RECEIVE_HANDLER('@', receive_ich),
     RECEIVE_HANDLER('?', receive_csi_decmod),
@@ -977,7 +1042,7 @@ static const receive_table_t csi_receive_table = {
 
 static const receive_table_t csi_decmod_receive_table = {
     DEFAULT_RECEIVE_TABLE,
-    CSI_RECEIVE_TABLE,
+    ESC_PARAM_RECEIVE_TABLE,
     RECEIVE_HANDLER('h', receive_decsm),
     RECEIVE_HANDLER('l', receive_decrm),
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
@@ -1070,9 +1135,7 @@ void terminal_uart_transmit_printf(struct terminal *terminal,
 void terminal_uart_init(struct terminal *terminal) {
   terminal->receive_table = &default_receive_table;
 
-  memset(terminal->csi_params, 0, CSI_MAX_PARAMS_COUNT * CSI_MAX_PARAM_LENGTH);
-  terminal->csi_params_count = 0;
-  terminal->csi_last_param_length = 0;
+  clear_esc_params(terminal);
 
   terminal->uart_receive_count = terminal->receive_buffer_size;
   terminal->callbacks->uart_receive(terminal->receive_buffer,

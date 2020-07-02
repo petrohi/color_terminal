@@ -54,8 +54,8 @@ struct terminal;
 typedef void (*receive_t)(struct terminal *, character_t);
 typedef receive_t receive_table_t[CHARACTER_MAX + 1];
 
-#define CSI_MAX_PARAMS_COUNT 8
-#define CSI_MAX_PARAM_LENGTH 16
+#define ESC_MAX_PARAMS_COUNT 16
+#define ESC_MAX_PARAM_LENGTH 16
 
 struct visual_props {
   uint8_t font : 2;
@@ -132,9 +132,11 @@ struct terminal {
 
   const receive_table_t *receive_table;
 
-  character_t csi_params[CSI_MAX_PARAMS_COUNT][CSI_MAX_PARAM_LENGTH];
-  size_t csi_params_count;
-  size_t csi_last_param_length;
+  character_t esc_params[ESC_MAX_PARAMS_COUNT][ESC_MAX_PARAM_LENGTH];
+  size_t esc_params_count;
+  size_t esc_last_param_length;
+
+  character_t vt52_move_cursor_row;
 
   character_t *transmit_buffer;
   size_t transmit_buffer_size;
