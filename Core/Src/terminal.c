@@ -27,6 +27,8 @@ void terminal_init(struct terminal *terminal,
   terminal_screen_init(terminal);
   terminal_uart_init(terminal);
 
+  terminal->saved_vs = terminal->vs;
+
   terminal_uart_receive_string(
       terminal, PRODUCT_NAME PRODUCT_VERSION PRODUCT_COPYRIGHT "\r\n");
 }

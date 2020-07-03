@@ -5,7 +5,6 @@
 #include <stdio.h>
 
 #define PRINTF_BUFFER_SIZE 64
-#define CODEPOINT_TRANSFORMATION_TABLE_LENGTH 256
 
 static void clear_esc_params(struct terminal *terminal) {
   memset(terminal->esc_params, 0, ESC_MAX_PARAMS_COUNT * ESC_MAX_PARAM_LENGTH);
@@ -55,6 +54,15 @@ static void receive_esc(struct terminal *terminal, character_t character) {
 #endif
 }
 
+static void receive_sub(struct terminal *terminal, character_t character) {
+  if (terminal->receive_table != &default_receive_table) {
+#ifdef DEBUG
+    terminal->unhandled = true;
+#endif
+    clear_receive_table(terminal);
+  }
+}
+
 static void receive_cr(struct terminal *terminal, character_t character) {
   terminal_screen_carriage_return(terminal);
 }
@@ -77,6 +85,14 @@ static void receive_tab(struct terminal *terminal, character_t character) {
 
 static void receive_bs(struct terminal *terminal, character_t character) {
   terminal_screen_move_cursor(terminal, 0, -1);
+}
+
+static void receive_si(struct terminal *terminal, character_t character) {
+  terminal->vs.gset_gl = GSET_G0;
+}
+
+static void receive_so(struct terminal *terminal, character_t character) {
+  terminal->vs.gset_gl = GSET_G1;
 }
 
 static void receive_nel(struct terminal *terminal, character_t character) {
@@ -110,6 +126,16 @@ static void receive_decrc(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static void receive_ls2(struct terminal *terminal, character_t character) {
+  terminal->vs.gset_gl = GSET_G2;
+  clear_receive_table(terminal);
+}
+
+static void receive_ls3(struct terminal *terminal, character_t character) {
+  terminal->vs.gset_gl = GSET_G3;
+  clear_receive_table(terminal);
+}
+
 static const receive_table_t csi_receive_table;
 
 static void receive_csi(struct terminal *terminal, character_t character) {
@@ -138,40 +164,42 @@ static void receive_ris(struct terminal *terminal, character_t character) {
   terminal->callbacks->system_reset();
 }
 
-static const receive_table_t si_receive_table;
+static const receive_table_t scs_receive_table;
 
-static void receive_si(struct terminal *terminal, character_t character) {
-  terminal->receive_table = &si_receive_table;
-}
-
-static const receive_table_t so_receive_table;
-
-static void receive_so(struct terminal *terminal, character_t character) {
-  terminal->receive_table = &so_receive_table;
-}
-
-static const codepoint_t
-    dec_special_graphics_table[CODEPOINT_TRANSFORMATION_TABLE_LENGTH] = {
-        [0x5f] = 0x00a0, [0x60] = 0x25c6, [0x61] = 0x2592, [0x62] = 0x2409,
-        [0x63] = 0x240c, [0x64] = 0x240d, [0x65] = 0x240a, [0x66] = 0x00b0,
-        [0x67] = 0x00b1, [0x68] = 0x2424, [0x69] = 0x240b, [0x6a] = 0x2518,
-        [0x6b] = 0x2510, [0x6c] = 0x250c, [0x6d] = 0x2514, [0x6e] = 0x253c,
-        [0x6f] = 0x23ba, [0x70] = 0x23bb, [0x71] = 0x2500, [0x72] = 0x23bc,
-        [0x73] = 0x23bd, [0x74] = 0x251c, [0x75] = 0x2524, [0x76] = 0x2534,
-        [0x77] = 0x252c, [0x78] = 0x2502, [0x79] = 0x2264, [0x7a] = 0x2265,
-        [0x7b] = 0x03c0, [0x7c] = 0x2260, [0x7d] = 0x00a3, [0x7e] = 0x00b7,
+static const uint8_t scs_gset_decode_table[CHARACTER_DECODER_TABLE_LENGTH] = {
+    ['('] = GSET_G0,
+    [')'] = GSET_G1,
+    ['*'] = GSET_G2,
+    ['+'] = GSET_G3,
 };
 
-static void receive_scs_g0(struct terminal *terminal, character_t character) {
-  if (character == '0')
-    terminal->codepoint_transformation_table = dec_special_graphics_table;
-  else
-    terminal->codepoint_transformation_table = NULL;
+static const codepoint_transformation_table_t dec_special_graphics_table = {
+    [0x5f] = 0x00a0, [0x60] = 0x25c6, [0x61] = 0x2592, [0x62] = 0x2409,
+    [0x63] = 0x240c, [0x64] = 0x240d, [0x65] = 0x240a, [0x66] = 0x00b0,
+    [0x67] = 0x00b1, [0x68] = 0x2424, [0x69] = 0x240b, [0x6a] = 0x2518,
+    [0x6b] = 0x2510, [0x6c] = 0x250c, [0x6d] = 0x2514, [0x6e] = 0x253c,
+    [0x6f] = 0x23ba, [0x70] = 0x23bb, [0x71] = 0x2500, [0x72] = 0x23bc,
+    [0x73] = 0x23bd, [0x74] = 0x251c, [0x75] = 0x2524, [0x76] = 0x2534,
+    [0x77] = 0x252c, [0x78] = 0x2502, [0x79] = 0x2264, [0x7a] = 0x2265,
+    [0x7b] = 0x03c0, [0x7c] = 0x2260, [0x7d] = 0x00a3, [0x7e] = 0x00b7,
+};
 
-  clear_receive_table(terminal);
+static const codepoint_transformation_table_t
+    *scs_charset_table[CHARACTER_DECODER_TABLE_LENGTH] = {
+        ['0'] = &dec_special_graphics_table};
+
+static void receive_scs(struct terminal *terminal, character_t character) {
+  terminal->gset_received = scs_gset_decode_table[character];
+  terminal->receive_table = &scs_receive_table;
 }
 
-static void receive_scs_g1(struct terminal *terminal, character_t character) {
+static void receive_scs_set(struct terminal *terminal, character_t character) {
+  if (terminal->gset_received != GSET_UNDEFINED &&
+      terminal->gset_received <= GSET_MAX) {
+    terminal->vs.gset_table[terminal->gset_received - 1] =
+        scs_charset_table[character];
+  }
+
   clear_receive_table(terminal);
 }
 
@@ -928,12 +956,18 @@ static codepoint_t decode_utf8_codepoint(character_t *buffer, size_t length) {
 
 static codepoint_t transform_codepoint(struct terminal *terminal,
                                        codepoint_t codepoint) {
-  if (codepoint < CODEPOINT_TRANSFORMATION_TABLE_LENGTH &&
-      terminal->codepoint_transformation_table) {
-    codepoint_t transformed_codepoint =
-        terminal->codepoint_transformation_table[codepoint];
-    if (transformed_codepoint)
-      return transformed_codepoint;
+
+  if (terminal->vs.gset_gl != GSET_UNDEFINED &&
+      terminal->vs.gset_gl <= GSET_MAX &&
+      codepoint < CHARACTER_DECODER_TABLE_LENGTH) {
+    const codepoint_transformation_table_t *table =
+        terminal->vs.gset_table[terminal->vs.gset_gl - 1];
+
+    if (table) {
+      codepoint_t transformed_codepoint = (*table)[codepoint];
+      if (transformed_codepoint)
+        return transformed_codepoint;
+    }
   }
 
   return codepoint;
@@ -1023,8 +1057,8 @@ static void receive_character(struct terminal *terminal,
       RECEIVE_HANDLER('\x0b', receive_lf),                                     \
       RECEIVE_HANDLER('\x0c', receive_lf),                                     \
       RECEIVE_HANDLER('\x0d', receive_cr),                                     \
-      RECEIVE_HANDLER('\x0e', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x0f', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x0e', receive_so),                                     \
+      RECEIVE_HANDLER('\x0f', receive_si),                                     \
       RECEIVE_HANDLER('\x10', receive_ignore),                                 \
       RECEIVE_HANDLER('\x11', receive_ignore),                                 \
       RECEIVE_HANDLER('\x12', receive_ignore),                                 \
@@ -1035,7 +1069,7 @@ static void receive_character(struct terminal *terminal,
       RECEIVE_HANDLER('\x17', receive_ignore),                                 \
       RECEIVE_HANDLER('\x18', receive_ignore),                                 \
       RECEIVE_HANDLER('\x19', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x1a', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x1a', receive_sub),                                    \
       RECEIVE_HANDLER('\x1b', receive_esc),                                    \
       RECEIVE_HANDLER('\x1c', receive_ignore),                                 \
       RECEIVE_HANDLER('\x1d', receive_ignore),                                 \
@@ -1056,6 +1090,8 @@ static const receive_table_t esc_receive_table = {
     RECEIVE_HANDLER('=', receive_deckpam),
     RECEIVE_HANDLER('>', receive_deckpnm),
     RECEIVE_HANDLER('c', receive_ris),
+    RECEIVE_HANDLER('n', receive_ls2),
+    RECEIVE_HANDLER('o', receive_ls3),
     RECEIVE_HANDLER('E', receive_nel),
     RECEIVE_HANDLER('D', receive_ind),
     RECEIVE_HANDLER('H', receive_hts),
@@ -1063,8 +1099,13 @@ static const receive_table_t esc_receive_table = {
     RECEIVE_HANDLER('Z', receive_da),
     RECEIVE_HANDLER('7', receive_decsc),
     RECEIVE_HANDLER('8', receive_decrc),
-    RECEIVE_HANDLER('(', receive_si),
-    RECEIVE_HANDLER(')', receive_so),
+    RECEIVE_HANDLER('(', receive_scs),
+    RECEIVE_HANDLER(')', receive_scs),
+    RECEIVE_HANDLER('*', receive_scs),
+    RECEIVE_HANDLER('+', receive_scs),
+    RECEIVE_HANDLER('-', receive_scs),
+    RECEIVE_HANDLER('.', receive_scs),
+    RECEIVE_HANDLER('/', receive_scs),
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
@@ -1156,23 +1197,13 @@ static const receive_table_t esc_hash_receive_table = {
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
-static const receive_table_t si_receive_table = {
+static const receive_table_t scs_receive_table = {
     DEFAULT_RECEIVE_TABLE,
-    RECEIVE_HANDLER('A', receive_scs_g0),
-    RECEIVE_HANDLER('B', receive_scs_g0),
-    RECEIVE_HANDLER('0', receive_scs_g0),
-    RECEIVE_HANDLER('1', receive_scs_g0),
-    RECEIVE_HANDLER('2', receive_scs_g0),
-    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
-};
-
-static const receive_table_t so_receive_table = {
-    DEFAULT_RECEIVE_TABLE,
-    RECEIVE_HANDLER('A', receive_scs_g1),
-    RECEIVE_HANDLER('B', receive_scs_g1),
-    RECEIVE_HANDLER('0', receive_scs_g1),
-    RECEIVE_HANDLER('1', receive_scs_g1),
-    RECEIVE_HANDLER('2', receive_scs_g1),
+    RECEIVE_HANDLER('A', receive_scs_set),
+    RECEIVE_HANDLER('B', receive_scs_set),
+    RECEIVE_HANDLER('0', receive_scs_set),
+    RECEIVE_HANDLER('1', receive_scs_set),
+    RECEIVE_HANDLER('2', receive_scs_set),
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
@@ -1247,7 +1278,11 @@ void terminal_uart_init(struct terminal *terminal) {
   terminal->utf8_buffer_length = 0;
   memset(terminal->utf8_buffer, 0, 4);
 
-  terminal->codepoint_transformation_table = NULL;
+  terminal->gset_received = GSET_UNDEFINED;
+
+  terminal->vs.gset_gl = GSET_G0;
+  memset(terminal->vs.gset_table, 0,
+         GSET_MAX * sizeof(codepoint_transformation_table_t *));
 
 #ifdef DEBUG
   memset(terminal->debug_buffer, 0, DEBUG_BUFFER_LENGTH);

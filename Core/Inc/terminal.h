@@ -24,6 +24,7 @@ typedef uint16_t codepoint_t;
 #define DEFAULT_ACTIVE_COLOR 0xf
 #define DEFAULT_INACTIVE_COLOR 0
 #define CHARACTER_MAX UINT8_MAX
+#define CHARACTER_DECODER_TABLE_LENGTH CHARACTER_MAX + 1
 
 #define COLS 80
 #define ROWS 24
@@ -53,7 +54,9 @@ struct terminal;
 #define DEFAULT_RECEIVE CHARACTER_MAX
 
 typedef void (*receive_t)(struct terminal *, character_t);
-typedef receive_t receive_table_t[CHARACTER_MAX + 1];
+typedef receive_t receive_table_t[CHARACTER_DECODER_TABLE_LENGTH];
+typedef codepoint_t
+    codepoint_transformation_table_t[CHARACTER_DECODER_TABLE_LENGTH];
 
 #define ESC_MAX_PARAMS_COUNT 16
 #define ESC_MAX_PARAM_LENGTH 16
@@ -76,12 +79,24 @@ struct visual_cell {
   struct visual_props p;
 };
 
+enum gset {
+  GSET_UNDEFINED = 0,
+  GSET_G0 = 1,
+  GSET_G1 = 2,
+  GSET_G2 = 3,
+  GSET_G3 = 4,
+  GSET_MAX = 4,
+};
+
 struct visual_state {
   int16_t cursor_row;
   int16_t cursor_col;
   bool cursor_last_col;
 
   struct visual_props p;
+
+  enum gset gset_gl;
+  const codepoint_transformation_table_t *gset_table[GSET_MAX];
 };
 
 struct terminal {
@@ -149,7 +164,7 @@ struct terminal {
   size_t utf8_buffer_length;
   character_t utf8_buffer[4];
 
-  const codepoint_t *codepoint_transformation_table;
+  enum gset gset_received;
 
 #ifdef DEBUG
 #define DEBUG_BUFFER_LENGTH 128
