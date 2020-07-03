@@ -4,6 +4,8 @@
 #include <complex.h>
 #include <memory.h>
 
+#define REPLACEMENT_CODEPOINT 0xfffd
+
 void screen_clear_rows(struct screen *screen, size_t from_row, size_t to_row,
                        color_t inactive) {
   if (to_row <= from_row)
@@ -124,20 +126,18 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
   if (col >= COLS)
     return;
 
-  if (codepoint >= 0x20 && codepoint <= 0x7e) {
-    codepoint -= 0x1f;
-  } else if (codepoint == 0xa0) {
-    codepoint = 1;
-  } else if (codepoint >= 0xa1 && codepoint <= 0xff) {
-    codepoint -= 0x41;
+  size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
+  const struct bitmap_font *bitmap_font;
+  if (font == FONT_BOLD) {
+    bitmap_font = &bold_font;
   } else {
-    codepoint = 0;
+    bitmap_font = &normal_font;
   }
 
-  size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
-  const FontRow *font_data =
-      (font == FONT_BOLD ? bold_font_data
-                         : (italic ? italic_font_data : normal_font_data));
+  const unsigned char *glyph = find_glyph(bitmap_font, codepoint);
+
+  if (!glyph)
+    glyph = find_glyph(bitmap_font, REPLACEMENT_CODEPOINT);
 
   for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++) {
     for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
@@ -146,11 +146,13 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
 
       color_t color = inactive;
 
-      if ((underlined && char_y == CHAR_HEIGHT - 2) ||
-          (crossedout && char_y == CHAR_HEIGHT / 2) ||
+      if (glyph &&
+          ((underlined && char_y == CHAR_HEIGHT - 2) ||
+           (crossedout && char_y == CHAR_HEIGHT / 2) ||
 
-          (char_x < FONT_WIDTH &&
-           font_data[codepoint * FONT_HEIGHT + char_y] & (1 << char_x))) {
+           (char_x < bitmap_font->Width && char_y < bitmap_font->Height &&
+
+            glyph[char_y] & (1 << (CHAR_WIDTH - char_x))))) {
 
         color = active;
       }

@@ -1,10 +1,9 @@
 #include <stdint.h>
 
-#define FONT_WIDTH 7
-#define FONT_HEIGHT 13
+#include "Bdf2C/font.h"
 
-typedef uint8_t FontRow;
+extern const struct bitmap_font normal_font;
+extern const struct bitmap_font bold_font;
 
-extern const FontRow normal_font_data[];
-extern const FontRow italic_font_data[];
-extern const FontRow bold_font_data[];
+const unsigned char *find_glyph(const struct bitmap_font *font,
+                                unsigned short codepoint);

@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #define PRINTF_BUFFER_SIZE 64
+#define CODEPOINT_TRANSFORMATION_TABLE_LENGTH 256
 
 static void clear_esc_params(struct terminal *terminal) {
   memset(terminal->esc_params, 0, ESC_MAX_PARAMS_COUNT * ESC_MAX_PARAM_LENGTH);
@@ -149,7 +150,24 @@ static void receive_so(struct terminal *terminal, character_t character) {
   terminal->receive_table = &so_receive_table;
 }
 
+static const codepoint_t
+    dec_special_graphics_table[CODEPOINT_TRANSFORMATION_TABLE_LENGTH] = {
+        [0x5f] = 0x00a0, [0x60] = 0x25c6, [0x61] = 0x2592, [0x62] = 0x2409,
+        [0x63] = 0x240c, [0x64] = 0x240d, [0x65] = 0x240a, [0x66] = 0x00b0,
+        [0x67] = 0x00b1, [0x68] = 0x2424, [0x69] = 0x240b, [0x6a] = 0x2518,
+        [0x6b] = 0x2510, [0x6c] = 0x250c, [0x6d] = 0x2514, [0x6e] = 0x253c,
+        [0x6f] = 0x23ba, [0x70] = 0x23bb, [0x71] = 0x2500, [0x72] = 0x23bc,
+        [0x73] = 0x23bd, [0x74] = 0x251c, [0x75] = 0x2524, [0x76] = 0x2534,
+        [0x77] = 0x252c, [0x78] = 0x2502, [0x79] = 0x2264, [0x7a] = 0x2265,
+        [0x7b] = 0x03c0, [0x7c] = 0x2260, [0x7d] = 0x00a3, [0x7e] = 0x00b7,
+};
+
 static void receive_scs_g0(struct terminal *terminal, character_t character) {
+  if (character == '0')
+    terminal->codepoint_transformation_table = dec_special_graphics_table;
+  else
+    terminal->codepoint_transformation_table = NULL;
+
   clear_receive_table(terminal);
 }
 
@@ -861,10 +879,64 @@ static void receive_vt52_ansi(struct terminal *terminal,
   clear_receive_table(terminal);
 }
 
-static size_t get_utf8_codepoint_length(character_t character) { return 1; }
+struct utf8_codec_entry {
+  character_t mask;
+  character_t lead;
+  size_t bits_stored;
+};
+
+static const struct utf8_codec_entry *utf8_codec[] = {
+    [0] = &(struct utf8_codec_entry){0b00111111, 0b10000000, 6},
+    [1] = &(struct utf8_codec_entry){0b01111111, 0b00000000, 7},
+    [2] = &(struct utf8_codec_entry){0b00011111, 0b11000000, 5},
+    [3] = &(struct utf8_codec_entry){0b00001111, 0b11100000, 4},
+    [4] = &(struct utf8_codec_entry){0b00000111, 0b11110000, 3},
+    &(struct utf8_codec_entry){0},
+};
+
+static size_t get_utf8_codepoint_length(character_t character) {
+  int length = 0;
+
+  for (const struct utf8_codec_entry **e = utf8_codec; *e; ++e) {
+    if ((character & ~(*e)->mask) == (*e)->lead) {
+      break;
+    }
+
+    ++length;
+  }
+
+  if (length > 4)
+    return 0;
+
+  return length;
+}
 
 static codepoint_t decode_utf8_codepoint(character_t *buffer, size_t length) {
-  return 0;
+  if (!(length > 0 && length <= 3))
+    return 0;
+
+  size_t shift = utf8_codec[0]->bits_stored * (length - 1);
+  codepoint_t codepoint = (*buffer++ & utf8_codec[length]->mask) << shift;
+
+  for (size_t i = 1; i < length; ++i, ++buffer) {
+    shift -= utf8_codec[0]->bits_stored;
+    codepoint |= (*buffer & utf8_codec[0]->mask) << shift;
+  }
+
+  return codepoint;
+}
+
+static codepoint_t transform_codepoint(struct terminal *terminal,
+                                       codepoint_t codepoint) {
+  if (codepoint < CODEPOINT_TRANSFORMATION_TABLE_LENGTH &&
+      terminal->codepoint_transformation_table) {
+    codepoint_t transformed_codepoint =
+        terminal->codepoint_transformation_table[codepoint];
+    if (transformed_codepoint)
+      return transformed_codepoint;
+  }
+
+  return codepoint;
 }
 
 static void receive_printable(struct terminal *terminal,
@@ -877,13 +949,17 @@ static void receive_printable(struct terminal *terminal,
       terminal->utf8_codepoint_length = length;
       terminal->utf8_buffer[terminal->utf8_buffer_length++] = character;
     } else if (length == 1)
-      terminal_screen_put_codepoint(terminal, (codepoint_t)character);
+      terminal_screen_put_codepoint(
+          terminal,
+          transform_codepoint(terminal, decode_utf8_codepoint(&character, 1)));
   } else {
     terminal->utf8_buffer[terminal->utf8_buffer_length++] = character;
     if (terminal->utf8_buffer_length == terminal->utf8_codepoint_length) {
       terminal_screen_put_codepoint(
-          terminal, decode_utf8_codepoint(terminal->utf8_buffer,
-                                          terminal->utf8_codepoint_length));
+          terminal,
+          transform_codepoint(terminal, decode_utf8_codepoint(
+                                            terminal->utf8_buffer,
+                                            terminal->utf8_codepoint_length)));
 
       terminal->utf8_codepoint_length = 0;
       terminal->utf8_buffer_length = 0;
@@ -1170,6 +1246,8 @@ void terminal_uart_init(struct terminal *terminal) {
   terminal->utf8_codepoint_length = 0;
   terminal->utf8_buffer_length = 0;
   memset(terminal->utf8_buffer, 0, 4);
+
+  terminal->codepoint_transformation_table = NULL;
 
 #ifdef DEBUG
   memset(terminal->debug_buffer, 0, DEBUG_BUFFER_LENGTH);

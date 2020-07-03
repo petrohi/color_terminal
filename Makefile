@@ -83,6 +83,8 @@ Core/Src/terminal.c \
 Core/Src/terminal_screen.c \
 Core/Src/terminal_uart.c \
 Core/Src/terminal_keyboard.c \
+Core/Src/Bdf2C/normal.c \
+Core/Src/Bdf2C/bold.c \
 Core/Src/tim.c
 
 # ASM sources

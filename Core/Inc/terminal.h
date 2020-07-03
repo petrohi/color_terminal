@@ -149,6 +149,8 @@ struct terminal {
   size_t utf8_buffer_length;
   character_t utf8_buffer[4];
 
+  const codepoint_t *codepoint_transformation_table;
+
 #ifdef DEBUG
 #define DEBUG_BUFFER_LENGTH 128
   character_t debug_buffer[DEBUG_BUFFER_LENGTH];
