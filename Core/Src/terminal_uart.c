@@ -726,6 +726,25 @@ static void receive_decstbm(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static void receive_decreqtparm(struct terminal *terminal,
+                                character_t character) {
+  int16_t req = get_esc_param(terminal, 0);
+
+  if (req == 0 || req == 1) {
+    // TODO: Get from configuration
+    uint8_t par = 1;
+    uint8_t nbits = 2;
+    uint8_t xspeed = 120;
+    uint8_t rspeed = 120;
+    uint8_t clkmul = 0;
+    terminal_uart_transmit_printf(terminal, "\x1b[%d;%d;%d;%d;%d;%dx",
+                                  req == 0 ? 2 : 3, par, nbits, xspeed, rspeed,
+                                  clkmul);
+
+    clear_receive_table(terminal);
+  }
+}
+
 static void receive_decaln(struct terminal *terminal, character_t character) {
   for (size_t row = 0; row < ROWS; ++row)
     for (size_t col = 0; col < COLS; ++col) {
@@ -1069,9 +1088,9 @@ static void receive_utf8_continuation(struct terminal *terminal,
   if (terminal->utf8_buffer_length == terminal->utf8_codepoint_length) {
     terminal_screen_put_codepoint(
         terminal,
-        transform_codepoint(terminal, decode_utf8_codepoint(
-                                          terminal->utf8_buffer,
-                                          terminal->utf8_codepoint_length)));
+        transform_codepoint(
+            terminal, decode_utf8_codepoint(terminal->utf8_buffer,
+                                            terminal->utf8_codepoint_length)));
 
     clear_utf8_buffer(terminal);
     clear_receive_table(terminal);
@@ -1254,6 +1273,7 @@ static const receive_table_t csi_receive_table = {
     RECEIVE_HANDLER('m', receive_sgr),
     RECEIVE_HANDLER('n', receive_dsr),
     RECEIVE_HANDLER('r', receive_decstbm),
+    RECEIVE_HANDLER('x', receive_decreqtparm),
     RECEIVE_HANDLER('y', receive_dectst),
     RECEIVE_HANDLER('A', receive_cuu),
     RECEIVE_HANDLER('B', receive_cud),
