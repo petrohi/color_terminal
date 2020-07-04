@@ -6,6 +6,9 @@
 
 #define PRINTF_BUFFER_SIZE 64
 
+#define DECRQSS_PREFIX "$q"
+#define DECRQSS_PREFIX_LENGTH 2
+
 static void clear_esc_params(struct terminal *terminal) {
   memset(terminal->esc_params, 0, ESC_MAX_PARAMS_COUNT * ESC_MAX_PARAM_LENGTH);
   terminal->esc_params_count = 0;
@@ -233,7 +236,7 @@ static void receive_esc_param_delimiter(struct terminal *terminal,
 }
 
 static void receive_da(struct terminal *terminal, character_t character) {
-  terminal_uart_transmit_string(terminal, "\x1b[?1;0c");
+  terminal_uart_transmit_string(terminal, "\x1b[?65;1;9c");
   clear_receive_table(terminal);
 }
 
@@ -861,14 +864,79 @@ static void receive_decrm(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static void clear_control_data(struct control_data *control_data) {
+  memset(control_data->data, 0, MAX_CONTROL_DATA_LENGTH);
+  control_data->length = 0;
+}
+
+static bool receive_control_data(struct control_data *control_data,
+                                 character_t character) {
+  if (control_data->length == MAX_CONTROL_DATA_LENGTH - 1)
+    return true;
+
+  control_data->data[control_data->length++] = character;
+
+  if (control_data->data[control_data->length - 1] == '\x07')
+    return true;
+
+  if (control_data->data[control_data->length - 2] == '\x1b' &&
+      control_data->data[control_data->length - 1] == '\\')
+    return true;
+
+  return false;
+}
+
 static const receive_table_t osc_receive_table;
 
 static void receive_osc(struct terminal *terminal, character_t character) {
   terminal->receive_table = &osc_receive_table;
+  clear_control_data(&terminal->osc);
 }
 
 static void receive_osc_data(struct terminal *terminal, character_t character) {
-  if (character == '\x07')
+  if (receive_control_data(&terminal->osc, character))
+    clear_receive_table(terminal);
+}
+
+static const receive_table_t dcs_receive_table;
+
+static void receive_dcs(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &dcs_receive_table;
+  clear_control_data(&terminal->dcs);
+}
+
+static void receive_dcs_data(struct terminal *terminal, character_t character) {
+  if (receive_control_data(&terminal->dcs, character)) {
+    if (terminal->dcs.length >= DECRQSS_PREFIX_LENGTH &&
+        strncmp((char *)terminal->dcs.data, DECRQSS_PREFIX,
+                DECRQSS_PREFIX_LENGTH) == 0) {
+      terminal_uart_transmit_string(terminal, "\x1bP0$r\x1b\\");
+    }
+    clear_receive_table(terminal);
+  }
+}
+
+static const receive_table_t apc_receive_table;
+
+static void receive_apc(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &apc_receive_table;
+  clear_control_data(&terminal->apc);
+}
+
+static void receive_apc_data(struct terminal *terminal, character_t character) {
+  if (receive_control_data(&terminal->apc, character))
+    clear_receive_table(terminal);
+}
+
+static const receive_table_t pm_receive_table;
+
+static void receive_pm(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &pm_receive_table;
+  clear_control_data(&terminal->pm);
+}
+
+static void receive_pm_data(struct terminal *terminal, character_t character) {
+  if (receive_control_data(&terminal->pm, character))
     clear_receive_table(terminal);
 }
 
@@ -988,6 +1056,12 @@ static void receive_utf8_prefix(struct terminal *terminal,
         transform_codepoint(terminal, decode_utf8_codepoint(&character, 1)));
 }
 
+static void clear_utf8_buffer(struct terminal *terminal) {
+  terminal->utf8_codepoint_length = 0;
+  terminal->utf8_buffer_length = 0;
+  memset(terminal->utf8_buffer, 0, 4);
+}
+
 static void receive_utf8_continuation(struct terminal *terminal,
                                       character_t character) {
 
@@ -999,10 +1073,7 @@ static void receive_utf8_continuation(struct terminal *terminal,
                                           terminal->utf8_buffer,
                                           terminal->utf8_codepoint_length)));
 
-    terminal->utf8_codepoint_length = 0;
-    terminal->utf8_buffer_length = 0;
-    memset(terminal->utf8_buffer, 0, 4);
-
+    clear_utf8_buffer(terminal);
     clear_receive_table(terminal);
   }
 }
@@ -1101,21 +1172,6 @@ static const receive_table_t utf8_continuation_receive_table = {
 
 static const receive_table_t esc_receive_table = {
     DEFAULT_RECEIVE_TABLE,
-    RECEIVE_HANDLER('[', receive_csi),
-    RECEIVE_HANDLER(']', receive_osc),
-    RECEIVE_HANDLER('#', receive_hash),
-    RECEIVE_HANDLER('=', receive_deckpam),
-    RECEIVE_HANDLER('>', receive_deckpnm),
-    RECEIVE_HANDLER('c', receive_ris),
-    RECEIVE_HANDLER('n', receive_ls2),
-    RECEIVE_HANDLER('o', receive_ls3),
-    RECEIVE_HANDLER('E', receive_nel),
-    RECEIVE_HANDLER('D', receive_ind),
-    RECEIVE_HANDLER('H', receive_hts),
-    RECEIVE_HANDLER('M', receive_ri),
-    RECEIVE_HANDLER('Z', receive_da),
-    RECEIVE_HANDLER('7', receive_decsc),
-    RECEIVE_HANDLER('8', receive_decrc),
     RECEIVE_HANDLER('(', receive_scs),
     RECEIVE_HANDLER(')', receive_scs),
     RECEIVE_HANDLER('*', receive_scs),
@@ -1123,6 +1179,24 @@ static const receive_table_t esc_receive_table = {
     RECEIVE_HANDLER('-', receive_scs),
     RECEIVE_HANDLER('.', receive_scs),
     RECEIVE_HANDLER('/', receive_scs),
+    RECEIVE_HANDLER('[', receive_csi),
+    RECEIVE_HANDLER(']', receive_osc),
+    RECEIVE_HANDLER('#', receive_hash),
+    RECEIVE_HANDLER('=', receive_deckpam),
+    RECEIVE_HANDLER('>', receive_deckpnm),
+    RECEIVE_HANDLER('_', receive_apc),
+    RECEIVE_HANDLER('^', receive_pm),
+    RECEIVE_HANDLER('c', receive_ris),
+    RECEIVE_HANDLER('n', receive_ls2),
+    RECEIVE_HANDLER('o', receive_ls3),
+    RECEIVE_HANDLER('E', receive_nel),
+    RECEIVE_HANDLER('D', receive_ind),
+    RECEIVE_HANDLER('H', receive_hts),
+    RECEIVE_HANDLER('M', receive_ri),
+    RECEIVE_HANDLER('P', receive_dcs),
+    RECEIVE_HANDLER('Z', receive_da),
+    RECEIVE_HANDLER('7', receive_decsc),
+    RECEIVE_HANDLER('8', receive_decrc),
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
@@ -1224,8 +1298,20 @@ static const receive_table_t scs_receive_table = {
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
+static const receive_table_t dcs_receive_table = {
+    DEFAULT_RECEIVE_HANDLER(receive_dcs_data),
+};
+
 static const receive_table_t osc_receive_table = {
     DEFAULT_RECEIVE_HANDLER(receive_osc_data),
+};
+
+static const receive_table_t apc_receive_table = {
+    DEFAULT_RECEIVE_HANDLER(receive_apc_data),
+};
+
+static const receive_table_t pm_receive_table = {
+    DEFAULT_RECEIVE_HANDLER(receive_pm_data),
 };
 
 void terminal_uart_transmit_character(struct terminal *terminal,
@@ -1260,10 +1346,11 @@ void terminal_uart_init(struct terminal *terminal) {
   terminal->receive_table = terminal->default_receive_table;
 
   clear_esc_params(terminal);
-
-  terminal->utf8_codepoint_length = 0;
-  terminal->utf8_buffer_length = 0;
-  memset(terminal->utf8_buffer, 0, 4);
+  clear_utf8_buffer(terminal);
+  clear_control_data(&terminal->dcs);
+  clear_control_data(&terminal->osc);
+  clear_control_data(&terminal->apc);
+  clear_control_data(&terminal->pm);
 
   terminal->gset_received = GSET_UNDEFINED;
 

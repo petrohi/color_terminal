@@ -99,6 +99,13 @@ struct visual_state {
   const codepoint_transformation_table_t *gset_table[GSET_MAX];
 };
 
+#define MAX_CONTROL_DATA_LENGTH 64
+
+struct control_data {
+  character_t data[MAX_CONTROL_DATA_LENGTH];
+  size_t length;
+};
+
 struct terminal {
   const struct terminal_callbacks *callbacks;
 
@@ -159,6 +166,11 @@ struct terminal {
   size_t utf8_codepoint_length;
   size_t utf8_buffer_length;
   character_t utf8_buffer[4];
+
+  struct control_data dcs;
+  struct control_data osc;
+  struct control_data apc;
+  struct control_data pm;
 
   enum gset gset_received;
 
