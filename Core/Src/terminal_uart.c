@@ -117,6 +117,16 @@ static void receive_ri(struct terminal *terminal, character_t character) {
   clear_receive_table(terminal);
 }
 
+static void receive_ss2(struct terminal *terminal, character_t character) {
+  terminal->unhandled = true;
+  clear_receive_table(terminal);
+}
+
+static void receive_ss3(struct terminal *terminal, character_t character) {
+  terminal->unhandled = true;
+  clear_receive_table(terminal);
+}
+
 static void receive_decsc(struct terminal *terminal, character_t character) {
   terminal_screen_save_visual_state(terminal);
   clear_receive_table(terminal);
@@ -898,6 +908,9 @@ static bool receive_control_data(struct control_data *control_data,
   if (control_data->data[control_data->length - 1] == '\x07')
     return true;
 
+  if (control_data->data[control_data->length - 1] == '\x9c')
+    return true;
+
   if (control_data->data[control_data->length - 2] == '\x1b' &&
       control_data->data[control_data->length - 1] == '\\')
     return true;
@@ -1097,6 +1110,60 @@ static void receive_utf8_continuation(struct terminal *terminal,
   }
 }
 
+static void receive_8bit_control(struct terminal *terminal,
+                                 character_t character) {
+  receive_esc(terminal, '\x1b');
+  terminal_uart_receive_character(terminal, character);
+}
+
+static void receive_8bit_ind(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, 'D');
+}
+
+static void receive_8bit_nel(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, 'E');
+}
+
+static void receive_8bit_hts(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, 'H');
+}
+
+static void receive_8bit_ri(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, 'M');
+}
+
+static void receive_8bit_ss2(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, 'N');
+}
+
+static void receive_8bit_ss3(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, 'O');
+}
+
+static void receive_8bit_dcs(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, 'P');
+}
+
+static void receive_8bit_da(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, 'Z');
+}
+
+static void receive_8bit_csi(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, '[');
+}
+
+static void receive_8bit_osc(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, ']');
+}
+
+static void receive_8bit_pm(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, '^');
+}
+
+static void receive_8bit_apc(struct terminal *terminal, character_t character) {
+  receive_8bit_control(terminal, '_');
+}
+
 static void receive_ignore(struct terminal *terminal, character_t character) {}
 
 static void receive_unexpected(struct terminal *terminal,
@@ -1178,7 +1245,19 @@ void terminal_uart_receive_string(struct terminal *terminal,
       RECEIVE_HANDLER('\x1d', receive_ignore),                                 \
       RECEIVE_HANDLER('\x1e', receive_ignore),                                 \
       RECEIVE_HANDLER('\x1f', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x7f', receive_bs)
+      RECEIVE_HANDLER('\x7f', receive_bs),                                     \
+      RECEIVE_HANDLER('\x84', receive_8bit_ind),                               \
+      RECEIVE_HANDLER('\x85', receive_8bit_nel),                               \
+      RECEIVE_HANDLER('\x88', receive_8bit_hts),                               \
+      RECEIVE_HANDLER('\x8d', receive_8bit_ri),                                \
+      RECEIVE_HANDLER('\x8e', receive_8bit_ss2),                               \
+      RECEIVE_HANDLER('\x8f', receive_8bit_ss3),                               \
+      RECEIVE_HANDLER('\x90', receive_8bit_dcs),                               \
+      RECEIVE_HANDLER('\x9a', receive_8bit_da),                                \
+      RECEIVE_HANDLER('\x9b', receive_8bit_csi),                               \
+      RECEIVE_HANDLER('\x9d', receive_8bit_osc),                               \
+      RECEIVE_HANDLER('\x9e', receive_8bit_pm),                                \
+      RECEIVE_HANDLER('\x9f', receive_8bit_apc)
 
 static const receive_table_t utf8_prefix_receive_table = {
     DEFAULT_RECEIVE_TABLE,
@@ -1212,6 +1291,8 @@ static const receive_table_t esc_receive_table = {
     RECEIVE_HANDLER('D', receive_ind),
     RECEIVE_HANDLER('H', receive_hts),
     RECEIVE_HANDLER('M', receive_ri),
+    RECEIVE_HANDLER('N', receive_ss2),
+    RECEIVE_HANDLER('O', receive_ss3),
     RECEIVE_HANDLER('P', receive_dcs),
     RECEIVE_HANDLER('Z', receive_da),
     RECEIVE_HANDLER('7', receive_decsc),
@@ -1347,6 +1428,7 @@ void terminal_uart_transmit_string(struct terminal *terminal,
   terminal->callbacks->uart_transmit(terminal->transmit_buffer, len);
 
   // TODO: len > transmit_buffer_size
+  // TODO: Rewrite 8-bit control codes
 }
 
 void terminal_uart_transmit_printf(struct terminal *terminal,

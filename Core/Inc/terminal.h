@@ -55,6 +55,7 @@ struct terminal;
 
 typedef void (*receive_t)(struct terminal *, character_t);
 typedef receive_t receive_table_t[CHARACTER_DECODER_TABLE_LENGTH];
+
 typedef codepoint_t
     codepoint_transformation_table_t[CHARACTER_DECODER_TABLE_LENGTH];
 
