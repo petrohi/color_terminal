@@ -122,26 +122,22 @@ struct visual_cell *get_cell(struct terminal *terminal, int16_t row,
   return &terminal->cells[row * COLS + col];
 }
 
+static void swap_colors(color_t *color1, color_t *color2) {
+  color_t tmp = *color1;
+  *color1 = *color2;
+  *color2 = tmp;
+}
+
 static void render_character(struct terminal *terminal, int16_t row,
                              int16_t col, bool cursor, bool blink) {
   struct visual_cell *cell = get_cell(terminal, row, col);
 
-  color_t active =
-      cell->p.negative ? cell->p.inactive_color : cell->p.active_color;
+  color_t active = cell->c ? cell->p.active_color : terminal->vs.p.active_color;
   color_t inactive =
-      cell->p.negative ? cell->p.active_color : cell->p.inactive_color;
+      cell->c ? cell->p.inactive_color : terminal->vs.p.inactive_color;
 
-  if (terminal->screen_mode) {
-    if (active == DEFAULT_INACTIVE_COLOR)
-      active = DEFAULT_ACTIVE_COLOR;
-    else if (active == DEFAULT_ACTIVE_COLOR)
-      active = DEFAULT_INACTIVE_COLOR;
-
-    if (inactive == DEFAULT_INACTIVE_COLOR)
-      inactive = DEFAULT_ACTIVE_COLOR;
-    else if (inactive == DEFAULT_ACTIVE_COLOR)
-      inactive = DEFAULT_INACTIVE_COLOR;
-  }
+  if (cell->p.negative != terminal->screen_mode)
+    swap_colors(&active, &inactive);
 
   if (cursor) {
     active = ~active;
@@ -237,7 +233,8 @@ static void draw_screen(struct terminal *terminal) {
 }
 
 static color_t inactive_color(struct terminal *terminal) {
-  return terminal->screen_mode ? DEFAULT_ACTIVE_COLOR : DEFAULT_INACTIVE_COLOR;
+  return terminal->screen_mode ? terminal->vs.p.active_color
+                               : terminal->vs.p.inactive_color;
 }
 
 static void clear_rows(struct terminal *terminal, int16_t from_row,

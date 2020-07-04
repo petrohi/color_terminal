@@ -134,10 +134,14 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
     bitmap_font = &normal_font;
   }
 
-  const unsigned char *glyph = find_glyph(bitmap_font, codepoint);
+  const unsigned char *glyph = NULL;
 
-  if (!glyph)
-    glyph = find_glyph(bitmap_font, REPLACEMENT_CODEPOINT);
+  if (codepoint) {
+    glyph = find_glyph(bitmap_font, codepoint);
+
+    if (!glyph)
+      glyph = find_glyph(bitmap_font, REPLACEMENT_CODEPOINT);
+  }
 
   for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++) {
     for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
