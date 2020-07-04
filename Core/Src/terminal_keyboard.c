@@ -17,14 +17,14 @@ struct keys_entry;
 
 struct keys_router {
   size_t (*router)(struct terminal *);
-  struct keys_entry *entries;
+  const struct keys_entry *entries;
 };
 
 union keys_variant {
   character_t character;
   const char *string;
   void (*handler)(struct terminal *);
-  struct keys_router *router;
+  const struct keys_router *router;
 };
 
 struct keys_entry {
@@ -56,12 +56,26 @@ static size_t get_ansi_mode(struct terminal *terminal) {
   return terminal->ansi_mode;
 }
 
+static size_t get_num(struct terminal *terminal) {
+  return terminal->lock_state.num;
+}
+
 void terminal_update_keyboard_leds(struct terminal *terminal) {
   terminal->callbacks->keyboard_set_leds(terminal->lock_state);
 }
 
 static void handle_caps_lock(struct terminal *terminal) {
   terminal->lock_state.caps ^= 1;
+  terminal_update_keyboard_leds(terminal);
+}
+
+static void handle_num_lock(struct terminal *terminal) {
+  terminal->lock_state.num ^= 1;
+  terminal_update_keyboard_leds(terminal);
+}
+
+static void handle_scroll_lock(struct terminal *terminal) {
+  terminal->lock_state.scroll ^= 1;
   terminal_update_keyboard_leds(terminal);
 }
 
@@ -82,8 +96,8 @@ static void handle_caps_lock(struct terminal *terminal) {
 #define KEY_ROUTER(r, ...)                                                     \
   {                                                                            \
     ROUTER, {                                                                  \
-      .router = &(struct keys_router) {                                        \
-        r, (struct keys_entry[]) { __VA_ARGS__ }                               \
+      .router = &(const struct keys_router) {                                  \
+        r, (const struct keys_entry[]) { __VA_ARGS__ }                         \
       }                                                                        \
     }                                                                          \
   }
@@ -185,24 +199,24 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_ROUTER(get_shift, KEY_CHR(','), KEY_CHR('<')), // COMMA_AND_LESS
     KEY_ROUTER(get_shift, KEY_CHR('.'), KEY_CHR('>')), // DOT_GREATER
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_shift, KEY_CHR('/'), KEY_CHR('?')),
-               KEY_CHR('\x1f')),   // SLASH_QUESTION
-    KEY_HANDLER(handle_caps_lock), // CAPS_LOCK
-    KEY_STR("\033[11~"),           // F1
-    KEY_STR("\033[12~"),           // F2
-    KEY_STR("\033[13~"),           // F3
-    KEY_STR("\033[14~"),           // F4
-    KEY_STR("\033[15~"),           // F5
-    KEY_STR("\033[17~"),           // F6
-    KEY_STR("\033[18~"),           // F7
-    KEY_STR("\033[19~"),           // F8
-    KEY_STR("\033[20~"),           // F9
-    KEY_STR("\033[21~"),           // F10
-    KEY_STR("\033[23~"),           // F11
-    KEY_STR("\033[24~"),           // F12
-    KEY_IGNORE,                    // PRINTSCREEN
-    KEY_IGNORE,                    // SCROLL_LOCK
-    KEY_IGNORE,                    // PAUSE
-    KEY_STR("\033[2~"),            // INSERT
+               KEY_CHR('\x1f')),     // SLASH_QUESTION
+    KEY_HANDLER(handle_caps_lock),   // CAPS_LOCK
+    KEY_STR("\033[11~"),             // F1
+    KEY_STR("\033[12~"),             // F2
+    KEY_STR("\033[13~"),             // F3
+    KEY_STR("\033[14~"),             // F4
+    KEY_STR("\033[15~"),             // F5
+    KEY_STR("\033[17~"),             // F6
+    KEY_STR("\033[18~"),             // F7
+    KEY_STR("\033[19~"),             // F8
+    KEY_STR("\033[20~"),             // F9
+    KEY_STR("\033[21~"),             // F10
+    KEY_STR("\033[23~"),             // F11
+    KEY_STR("\033[24~"),             // F12
+    KEY_IGNORE,                      // PRINTSCREEN
+    KEY_HANDLER(handle_scroll_lock), // SCROLL_LOCK
+    KEY_IGNORE,                      // PAUSE
+    KEY_STR("\033[2~"),              // INSERT
     KEY_ROUTER(get_cursor_key_mode, KEY_STR("\033[H"),
                KEY_STR("\033OH")), // HOME
     KEY_STR("\033[5~"),            // PAGEUP
@@ -222,28 +236,45 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_ROUTER(get_ansi_mode, KEY_STR("\033A"),
                KEY_ROUTER(get_cursor_key_mode, KEY_STR("\033[A"),
                           KEY_STR("\033OA"))), // UPARROW
-    KEY_IGNORE,                                // KEYPAD_NUM_LOCK_AND_CLEAR
-    KEY_IGNORE,                                // KEYPAD_SLASH
-    KEY_IGNORE,                                // KEYPAD_ASTERIKS
-    KEY_IGNORE,                                // KEYPAD_MINUS
-    KEY_IGNORE,                                // KEYPAD_PLUS
-    KEY_IGNORE,                                // KEYPAD_ENTER
-    KEY_IGNORE,                                // KEYPAD_1_END
-    KEY_IGNORE,                                // KEYPAD_2_DOWN_ARROW
-    KEY_IGNORE,                                // KEYPAD_3_PAGEDN
-    KEY_IGNORE,                                // KEYPAD_4_LEFT_ARROW
-    KEY_IGNORE,                                // KEYPAD_5
-    KEY_IGNORE,                                // KEYPAD_6_RIGHT_ARROW
-    KEY_IGNORE,                                // KEYPAD_7_HOME
-    KEY_IGNORE,                                // KEYPAD_8_UP_ARROW
-    KEY_IGNORE,                                // KEYPAD_9_PAGEUP
-    KEY_IGNORE,                                // KEYPAD_0_INSERT
-    KEY_IGNORE, // KEYPAD_DECIMAL_SEPARATOR_DELETE
+    KEY_HANDLER(handle_num_lock),              // KEYPAD_NUM_LOCK_AND_CLEAR
+    KEY_ROUTER(get_num, KEY_STR("\033Oo"),
+               KEY_CHR('/')), // KEYPAD_SLASH
+    KEY_ROUTER(get_num, KEY_STR("\033Oj"),
+               KEY_CHR('*')), // KEYPAD_ASTERIKS
+    KEY_ROUTER(get_num, KEY_STR("\033Om"),
+               KEY_CHR('-')), // KEYPAD_MINUS
+    KEY_ROUTER(get_num, KEY_STR("\033Ok"),
+               KEY_CHR('+')), // KEYPAD_PLUS
+    KEY_ROUTER(get_num, KEY_STR("\033OM"),
+               KEY_ROUTER(get_new_line_mode, KEY_CHR('\x0d'),
+                          KEY_STR("\x0d\x0a"))), // KEYPAD_ENTER
+    KEY_ROUTER(get_num, KEY_STR("\033OF"),
+               KEY_CHR('1')), // KEYPAD_1_END
+    KEY_ROUTER(get_num, KEY_STR("\033[B"),
+               KEY_CHR('2')), // KEYPAD_2_DOWN_ARROW
+    KEY_ROUTER(get_num, KEY_STR("\033[6~"),
+               KEY_CHR('3')), // KEYPAD_3_PAGEDN
+    KEY_ROUTER(get_num, KEY_STR("\033[D"),
+               KEY_CHR('4')), // KEYPAD_4_LEFT_ARROW
+    KEY_ROUTER(get_num, KEY_STR("\033[E"),
+               KEY_CHR('5')), // KEYPAD_5
+    KEY_ROUTER(get_num, KEY_STR("\033[C"),
+               KEY_CHR('6')), // KEYPAD_6_RIGHT_ARROW
+    KEY_ROUTER(get_num, KEY_STR("\033OH"),
+               KEY_CHR('7')), // KEYPAD_7_HOME
+    KEY_ROUTER(get_num, KEY_STR("\033[A"),
+               KEY_CHR('8')), // KEYPAD_8_UP_ARROW
+    KEY_ROUTER(get_num, KEY_STR("\033[5~"),
+               KEY_CHR('9')), // KEYPAD_9_PAGEUP
+    KEY_ROUTER(get_num, KEY_STR("\033[2~"),
+               KEY_CHR('0')), // KEYPAD_0_INSERT
+    KEY_ROUTER(get_num, KEY_STR("\033[3~"),
+               KEY_CHR('.')), // KEYPAD_DECIMAL_SEPARATOR_DELETE
 };
 
 static void handle_key(struct terminal *terminal,
                        const struct keys_entry *key) {
-  struct keys_router *router;
+  const struct keys_router *router;
 
   switch (key->type) {
   case IGNORE:
