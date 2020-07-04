@@ -1246,15 +1246,35 @@ void terminal_uart_receive_string(struct terminal *terminal,
       RECEIVE_HANDLER('\x1e', receive_ignore),                                 \
       RECEIVE_HANDLER('\x1f', receive_ignore),                                 \
       RECEIVE_HANDLER('\x7f', receive_bs),                                     \
+      RECEIVE_HANDLER('\x80', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x81', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x82', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x83', receive_ignore),                                 \
       RECEIVE_HANDLER('\x84', receive_8bit_ind),                               \
       RECEIVE_HANDLER('\x85', receive_8bit_nel),                               \
+      RECEIVE_HANDLER('\x86', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x87', receive_ignore),                                 \
       RECEIVE_HANDLER('\x88', receive_8bit_hts),                               \
+      RECEIVE_HANDLER('\x89', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x8a', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x8b', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x8c', receive_ignore),                                 \
       RECEIVE_HANDLER('\x8d', receive_8bit_ri),                                \
       RECEIVE_HANDLER('\x8e', receive_8bit_ss2),                               \
       RECEIVE_HANDLER('\x8f', receive_8bit_ss3),                               \
       RECEIVE_HANDLER('\x90', receive_8bit_dcs),                               \
+      RECEIVE_HANDLER('\x91', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x92', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x93', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x94', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x95', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x96', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x97', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x98', receive_ignore),                                 \
+      RECEIVE_HANDLER('\x99', receive_ignore),                                 \
       RECEIVE_HANDLER('\x9a', receive_8bit_da),                                \
       RECEIVE_HANDLER('\x9b', receive_8bit_csi),                               \
+      RECEIVE_HANDLER('\x9c', receive_ignore),                                 \
       RECEIVE_HANDLER('\x9d', receive_8bit_osc),                               \
       RECEIVE_HANDLER('\x9e', receive_8bit_pm),                                \
       RECEIVE_HANDLER('\x9f', receive_8bit_apc)
