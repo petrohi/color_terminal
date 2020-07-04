@@ -1017,8 +1017,8 @@ static void receive_unexpected(struct terminal *terminal,
   clear_receive_table(terminal);
 }
 
-static void receive_character(struct terminal *terminal,
-                              character_t character) {
+void terminal_uart_receive_character(struct terminal *terminal,
+                                     character_t character) {
   receive_t receive = (*terminal->receive_table)[character];
 
   if (!receive) {
@@ -1042,6 +1042,14 @@ static void receive_character(struct terminal *terminal,
   }
 #endif
   receive(terminal, character);
+}
+
+void terminal_uart_receive_string(struct terminal *terminal,
+                                  const char *string) {
+  while (*string) {
+    terminal_uart_receive_character(terminal, *string);
+    string++;
+  }
 }
 
 #define RECEIVE_HANDLER(c, h) [c] = h
@@ -1220,33 +1228,6 @@ static const receive_table_t osc_receive_table = {
     DEFAULT_RECEIVE_HANDLER(receive_osc_data),
 };
 
-void terminal_uart_receive_string(struct terminal *terminal,
-                                  const char *string) {
-  while (*string) {
-    receive_character(terminal, *string);
-    string++;
-  }
-}
-
-void terminal_uart_receive(struct terminal *terminal, uint32_t count) {
-  if (terminal->uart_receive_count == count)
-    return;
-
-  uint32_t i = terminal->uart_receive_count;
-
-  while (i != count) {
-    character_t character =
-        terminal->receive_buffer[terminal->receive_buffer_size - i];
-    receive_character(terminal, character);
-    i--;
-
-    if (i == 0)
-      i = terminal->receive_buffer_size;
-  }
-
-  terminal->uart_receive_count = count;
-}
-
 void terminal_uart_transmit_character(struct terminal *terminal,
                                       character_t character) {
   memcpy(terminal->transmit_buffer, &character, 1);
@@ -1279,10 +1260,6 @@ void terminal_uart_init(struct terminal *terminal) {
   terminal->receive_table = terminal->default_receive_table;
 
   clear_esc_params(terminal);
-
-  terminal->uart_receive_count = terminal->receive_buffer_size;
-  terminal->callbacks->uart_receive(terminal->receive_buffer,
-                                    terminal->receive_buffer_size);
 
   terminal->utf8_codepoint_length = 0;
   terminal->utf8_buffer_length = 0;

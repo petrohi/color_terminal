@@ -187,11 +187,11 @@ static void screen_shift_left_callback(size_t row, size_t col, size_t cols,
 
 struct terminal *global_terminal;
 
-#define TRANSMIT_BUFFER_SIZE 64
-#define RECEIVE_BUFFER_SIZE 1024 * 2
+#define UART_TRANSMIT_BUFFER_SIZE 64
+#define UART_RECEIVE_BUFFER_SIZE 1024 * 2
 
-static character_t transmit_buffer[TRANSMIT_BUFFER_SIZE];
-static character_t receive_buffer[RECEIVE_BUFFER_SIZE];
+static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
+static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
 
 /* USER CODE END 0 */
 
@@ -236,7 +236,6 @@ int main(void)
   struct terminal_callbacks callbacks = {
       .keyboard_set_leds = keyboard_set_leds,
       .uart_transmit = uart_transmit,
-      .uart_receive = uart_receive,
       .screen_draw_codepoint = screen_draw_codepoint_callback,
       .screen_clear_rows = screen_clear_rows_callback,
       .screen_clear_cols = screen_clear_cols_callback,
@@ -244,8 +243,8 @@ int main(void)
       .screen_shift_left = screen_shift_left_callback,
       .screen_shift_right = screen_shift_right_callback,
       .system_reset = HAL_NVIC_SystemReset};
-  terminal_init(&terminal, &callbacks, transmit_buffer, TRANSMIT_BUFFER_SIZE,
-                receive_buffer, RECEIVE_BUFFER_SIZE);
+  terminal_init(&terminal, &callbacks, uart_transmit_buffer,
+                UART_TRANSMIT_BUFFER_SIZE);
   global_terminal = &terminal;
   start_timer();
 
@@ -256,8 +255,8 @@ int main(void)
   // screen_clear(ltdc_get_screen(), 15);
   // screen_clear(ltdc_get_screen(), 0);
 
-  //Receive((uint8_t *)rx_buffer, sizeof(rx_buffer));
-  //int count = 0;
+  uint16_t uart_receive_current_count = UART_RECEIVE_BUFFER_SIZE;
+  uart_receive(uart_receive_buffer, UART_RECEIVE_BUFFER_SIZE);
 
   /* USER CODE END 2 */
 
@@ -270,19 +269,23 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    //int new_count = (int)ReceiveByteCount();
-
-    //if (new_count != count) {
-    //  count = new_count;
-    //  printf("Receive byte count %d\n", count);
-    //}
-
-    //test_mandelbrot();
-
     keyboard_handle(&terminal);
-    terminal_uart_receive(&terminal, uart_receive_count());
     terminal_screen_update(&terminal);
     terminal_keyboard_repeat_key(&terminal);
+
+    uint16_t uart_receive_next_count = uart_receive_count();
+    if (uart_receive_current_count == uart_receive_next_count)
+      continue;
+
+    while (uart_receive_current_count != uart_receive_next_count) {
+      character_t character = uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE -
+                                                  uart_receive_current_count];
+      terminal_uart_receive_character(&terminal, character);
+      uart_receive_current_count--;
+
+      if (uart_receive_current_count == 0)
+        uart_receive_current_count = UART_RECEIVE_BUFFER_SIZE;
+    }
   }
   /* USER CODE END 3 */
 }

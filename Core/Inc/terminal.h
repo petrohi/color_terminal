@@ -144,8 +144,6 @@ struct terminal {
 
   struct visual_cell cells[ROWS * COLS];
 
-  uint32_t uart_receive_count;
-
   const receive_table_t *default_receive_table;
   const receive_table_t *receive_table;
 
@@ -157,9 +155,6 @@ struct terminal {
 
   character_t *transmit_buffer;
   size_t transmit_buffer_size;
-
-  character_t *receive_buffer;
-  size_t receive_buffer_size;
 
   size_t utf8_codepoint_length;
   size_t utf8_buffer_length;
@@ -177,14 +172,14 @@ struct terminal {
 
 void terminal_init(struct terminal *terminal,
                    const struct terminal_callbacks *callbacks,
-                   character_t *transmit_buffer, size_t transmit_buffer_size,
-                   character_t *receive_buffer, size_t receive_buffer_size);
+                   character_t *transmit_buffer, size_t transmit_buffer_size);
 void terminal_keyboard_handle_key(struct terminal *terminal, uint8_t key);
 void terminal_keyboard_handle_shift(struct terminal *terminal, bool shift);
 void terminal_keyboard_handle_alt(struct terminal *terminal, bool alt);
 void terminal_keyboard_handle_ctrl(struct terminal *terminal, bool ctrl);
 
-void terminal_uart_receive(struct terminal *terminal, uint32_t count);
+void terminal_uart_receive_character(struct terminal *terminal,
+                                     character_t character);
 void terminal_timer_tick(struct terminal *terminal);
 void terminal_screen_update(struct terminal *terminal);
 void terminal_keyboard_repeat_key(struct terminal *terminal);
