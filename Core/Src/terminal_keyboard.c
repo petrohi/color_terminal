@@ -202,12 +202,14 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_IGNORE,                    // PRINTSCREEN
     KEY_IGNORE,                    // SCROLL_LOCK
     KEY_IGNORE,                    // PAUSE
-    KEY_IGNORE,                    // INSERT
-    KEY_IGNORE,                    // HOME
-    KEY_IGNORE,                    // PAGEUP
-    KEY_IGNORE,                    // DELETE
-    KEY_IGNORE,                    // END1
-    KEY_IGNORE,                    // PAGEDOWN
+    KEY_STR("\033[2~"),            // INSERT
+    KEY_ROUTER(get_cursor_key_mode, KEY_STR("\033[H"),
+               KEY_STR("\033OH")), // HOME
+    KEY_STR("\033[5~"),            // PAGEUP
+    KEY_STR("\033[3~"),            // DELETE
+    KEY_ROUTER(get_cursor_key_mode, KEY_STR("\033[F"),
+               KEY_STR("\033OF")), // END1
+    KEY_STR("\033[6~"),            // PAGEDOWN
     KEY_ROUTER(get_ansi_mode, KEY_STR("\033C"),
                KEY_ROUTER(get_cursor_key_mode, KEY_STR("\033[C"),
                           KEY_STR("\033OC"))), // RIGHTARROW
