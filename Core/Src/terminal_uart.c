@@ -17,10 +17,8 @@ static int16_t get_esc_param(struct terminal *terminal, size_t index) {
   return atoi((const char *)terminal->esc_params[index]);
 }
 
-static const receive_table_t default_receive_table;
-
 static void clear_receive_table(struct terminal *terminal) {
-  terminal->receive_table = &default_receive_table;
+  terminal->receive_table = terminal->default_receive_table;
   clear_esc_params(terminal);
 
 #ifdef DEBUG
@@ -35,7 +33,7 @@ static const receive_table_t esc_receive_table;
 static const receive_table_t vt52_esc_receive_table;
 
 static void receive_esc(struct terminal *terminal, character_t character) {
-  if (terminal->receive_table != &default_receive_table) {
+  if (terminal->receive_table != terminal->default_receive_table) {
 #ifdef DEBUG
     terminal->unhandled = true;
 #endif
@@ -55,7 +53,7 @@ static void receive_esc(struct terminal *terminal, character_t character) {
 }
 
 static void receive_sub(struct terminal *terminal, character_t character) {
-  if (terminal->receive_table != &default_receive_table) {
+  if (terminal->receive_table != terminal->default_receive_table) {
 #ifdef DEBUG
     terminal->unhandled = true;
 #endif
@@ -973,32 +971,39 @@ static codepoint_t transform_codepoint(struct terminal *terminal,
   return codepoint;
 }
 
-static void receive_printable(struct terminal *terminal,
-                              character_t character) {
+static const receive_table_t utf8_continuation_receive_table;
 
-  if (terminal->utf8_codepoint_length == 0) {
-    size_t length = get_utf8_codepoint_length(character);
+static void receive_utf8_prefix(struct terminal *terminal,
+                                character_t character) {
 
-    if (length > 1) {
-      terminal->utf8_codepoint_length = length;
-      terminal->utf8_buffer[terminal->utf8_buffer_length++] = character;
-    } else if (length == 1)
-      terminal_screen_put_codepoint(
-          terminal,
-          transform_codepoint(terminal, decode_utf8_codepoint(&character, 1)));
-  } else {
+  size_t length = get_utf8_codepoint_length(character);
+
+  if (length > 1) {
+    terminal->utf8_codepoint_length = length;
     terminal->utf8_buffer[terminal->utf8_buffer_length++] = character;
-    if (terminal->utf8_buffer_length == terminal->utf8_codepoint_length) {
-      terminal_screen_put_codepoint(
-          terminal,
-          transform_codepoint(terminal, decode_utf8_codepoint(
-                                            terminal->utf8_buffer,
-                                            terminal->utf8_codepoint_length)));
+    terminal->receive_table = &utf8_continuation_receive_table;
+  } else if (length == 1)
+    terminal_screen_put_codepoint(
+        terminal,
+        transform_codepoint(terminal, decode_utf8_codepoint(&character, 1)));
+}
 
-      terminal->utf8_codepoint_length = 0;
-      terminal->utf8_buffer_length = 0;
-      memset(terminal->utf8_buffer, 0, 4);
-    }
+static void receive_utf8_continuation(struct terminal *terminal,
+                                      character_t character) {
+
+  terminal->utf8_buffer[terminal->utf8_buffer_length++] = character;
+  if (terminal->utf8_buffer_length == terminal->utf8_codepoint_length) {
+    terminal_screen_put_codepoint(
+        terminal,
+        transform_codepoint(terminal, decode_utf8_codepoint(
+                                          terminal->utf8_buffer,
+                                          terminal->utf8_codepoint_length)));
+
+    terminal->utf8_codepoint_length = 0;
+    terminal->utf8_buffer_length = 0;
+    memset(terminal->utf8_buffer, 0, 4);
+
+    clear_receive_table(terminal);
   }
 }
 
@@ -1022,7 +1027,7 @@ static void receive_character(struct terminal *terminal,
 
 #ifdef DEBUG
   // Keep zero for the end of the string for printf
-  if (terminal->receive_table != &default_receive_table &&
+  if (terminal->receive_table != terminal->default_receive_table &&
       terminal->debug_buffer_length < DEBUG_BUFFER_LENGTH - 1) {
     if (character < 0x20 || (character >= 0x7f && character <= 0xa0))
       terminal->debug_buffer_length += snprintf(
@@ -1077,9 +1082,13 @@ static void receive_character(struct terminal *terminal,
       RECEIVE_HANDLER('\x1f', receive_ignore),                                 \
       RECEIVE_HANDLER('\x7f', receive_bs)
 
-static const receive_table_t default_receive_table = {
+static const receive_table_t utf8_prefix_receive_table = {
     DEFAULT_RECEIVE_TABLE,
-    DEFAULT_RECEIVE_HANDLER(receive_printable),
+    DEFAULT_RECEIVE_HANDLER(receive_utf8_prefix),
+};
+
+static const receive_table_t utf8_continuation_receive_table = {
+    DEFAULT_RECEIVE_HANDLER(receive_utf8_continuation),
 };
 
 static const receive_table_t esc_receive_table = {
@@ -1266,7 +1275,8 @@ void terminal_uart_transmit_printf(struct terminal *terminal,
 }
 
 void terminal_uart_init(struct terminal *terminal) {
-  terminal->receive_table = &default_receive_table;
+  terminal->default_receive_table = &utf8_prefix_receive_table;
+  terminal->receive_table = terminal->default_receive_table;
 
   clear_esc_params(terminal);
 

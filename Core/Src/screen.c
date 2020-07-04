@@ -150,9 +150,9 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
           ((underlined && char_y == CHAR_HEIGHT - 2) ||
            (crossedout && char_y == CHAR_HEIGHT / 2) ||
 
-           (char_x < bitmap_font->Width && char_y < bitmap_font->Height &&
+           (char_x < bitmap_font->width && char_y < bitmap_font->height &&
 
-            glyph[char_y] & (1 << (CHAR_WIDTH - char_x))))) {
+            glyph[char_y] & (1 << char_x)))) {
 
         color = active;
       }
@@ -162,31 +162,13 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
   }
 }
 
-static const struct {
-  color_t active;
-  enum font font;
-  bool italic;
-  bool underlined;
-  bool crossedout;
-} font_tests[] = {
-    {9, FONT_NORMAL, false, false, false},
-    {10, FONT_BOLD, false, false, false},
-    {11, FONT_NORMAL, true, false, false},
-    {12, FONT_NORMAL, false, true, false},
-    {13, FONT_BOLD, false, true, false},
-};
+void screen_test_fonts(struct screen *screen, enum font font) {
+  for (size_t row = 0; row < 24; row++) {
+    for (size_t col = 0; col < 64; col++) {
+      codepoint_t codepoint = ((row * 64) + col);
 
-void screen_test_fonts(struct screen *screen) {
-  for (size_t i = 0; i < 5; i++) {
-    for (size_t row = 0; row < 16; row++) {
-      for (size_t col = 0; col < 16; col++) {
-        codepoint_t codepoint = ((row * 16) + col);
-
-        screen_draw_codepoint(
-            screen, row, col + 16 * i, codepoint, font_tests[i].font,
-            font_tests[i].italic, font_tests[i].underlined,
-            font_tests[i].crossedout, font_tests[i].active, 0);
-      }
+      screen_draw_codepoint(screen, row, col, codepoint, font, false, false,
+                            false, 0xf, 0);
     }
   }
 }

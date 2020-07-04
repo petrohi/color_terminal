@@ -146,6 +146,7 @@ struct terminal {
 
   uint32_t uart_receive_count;
 
+  const receive_table_t *default_receive_table;
   const receive_table_t *receive_table;
 
   character_t esc_params[ESC_MAX_PARAMS_COUNT][ESC_MAX_PARAM_LENGTH];

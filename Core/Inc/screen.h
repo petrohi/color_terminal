@@ -31,7 +31,7 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
                            bool underlined, bool crossedout, color_t active,
                            color_t inactive);
 
-void screen_test_fonts(struct screen *screen);
+void screen_test_fonts(struct screen *screen, enum font font);
 
 void screen_test_mandelbrot(struct screen *screen, float window_x,
                             float window_y, float window_r, bool (*cancel)());

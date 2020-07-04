@@ -1,6 +1,13 @@
 #include <stdint.h>
 
-#include "Bdf2C/font.h"
+struct bitmap_font {
+  int glyphs;
+  int height;
+  int width;
+  const uint8_t *data;
+  const int *codepoints;
+  const int *codepoints_map;
+};
 
 extern const struct bitmap_font normal_font;
 extern const struct bitmap_font bold_font;

@@ -252,7 +252,7 @@ int main(void)
   // screen_test_colors(ltdc_get_screen());
   // screen_scroll(ltdc_get_screen(), UP, 2, ROWS - 2, 2, 0);
   // screen_scroll(ltdc_get_screen(), DOWN, 2, ROWS - 2, 2, 0);
-  // screen_test_fonts(ltdc_get_screen());
+  // screen_test_fonts(ltdc_get_screen(), FONT_NORMAL);
   // screen_clear(ltdc_get_screen(), 15);
   // screen_clear(ltdc_get_screen(), 0);
 
