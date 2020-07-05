@@ -1463,6 +1463,9 @@ void terminal_uart_transmit_character(struct terminal *terminal,
                                       character_t character) {
   memcpy(terminal->transmit_buffer, &character, 1);
   terminal->callbacks->uart_transmit(terminal->transmit_buffer, 1);
+
+  if (!terminal->send_receive_mode)
+    terminal_uart_receive_character(terminal, character);
 }
 
 static const character_t
@@ -1503,6 +1506,9 @@ void terminal_uart_transmit_string(struct terminal *terminal,
   }
 
   terminal->callbacks->uart_transmit(terminal->transmit_buffer, len);
+
+  if (!terminal->send_receive_mode)
+    terminal_uart_receive_string(terminal, string);
 }
 
 void terminal_uart_transmit_printf(struct terminal *terminal,
@@ -1518,6 +1524,8 @@ void terminal_uart_transmit_printf(struct terminal *terminal,
 }
 
 void terminal_uart_init(struct terminal *terminal) {
+  terminal->send_receive_mode = true;
+
   terminal->default_receive_table = &utf8_prefix_receive_table;
   terminal->receive_table = terminal->default_receive_table;
 

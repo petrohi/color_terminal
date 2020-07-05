@@ -360,6 +360,5 @@ void terminal_keyboard_init(struct terminal *terminal) {
   terminal->cursor_key_mode = false;
   terminal->keyboard_action_mode = false;
   terminal->auto_repeat_mode = true;
-  terminal->send_receive_mode = false;
   terminal->ansi_mode = true;
 }

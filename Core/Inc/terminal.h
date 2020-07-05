@@ -129,7 +129,7 @@ struct terminal {
   bool cursor_key_mode;
   bool keyboard_action_mode;
   bool auto_repeat_mode;
-  bool send_receive_mode; // TODO
+  bool send_receive_mode;
   bool ansi_mode;
 
   bool auto_wrap_mode;
