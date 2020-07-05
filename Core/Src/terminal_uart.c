@@ -27,8 +27,10 @@ static void clear_receive_table(struct terminal *terminal) {
 #ifdef DEBUG
   if (terminal->unhandled)
     printf("*%s\r\n", terminal->debug_buffer);
+#ifdef DEBUG_LOG_HANDLED_ESC
   else
     printf("%s\r\n", terminal->debug_buffer);
+#endif
 #endif
 }
 
