@@ -89,6 +89,11 @@ enum gset {
   GSET_MAX = 4,
 };
 
+enum c1_mode {
+  C1_MODE_7BIT,
+  C1_MODE_8BIT,
+};
+
 struct visual_state {
   int16_t cursor_row;
   int16_t cursor_col;
@@ -174,6 +179,7 @@ struct terminal {
   struct control_data pm;
 
   enum gset gset_received;
+  enum c1_mode c1_mode;
 
 #ifdef DEBUG
 #define DEBUG_BUFFER_LENGTH 128

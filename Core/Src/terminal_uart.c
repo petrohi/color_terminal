@@ -159,6 +159,22 @@ static void receive_hash(struct terminal *terminal, character_t character) {
   terminal->receive_table = &esc_hash_receive_table;
 }
 
+static const receive_table_t esc_space_receive_table;
+
+static void receive_space(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &esc_space_receive_table;
+}
+
+static void receive_s7c1t(struct terminal *terminal, character_t character) {
+  terminal->c1_mode = C1_MODE_7BIT;
+  clear_receive_table(terminal);
+}
+
+static void receive_s8c1t(struct terminal *terminal, character_t character) {
+  terminal->c1_mode = C1_MODE_8BIT;
+  clear_receive_table(terminal);
+}
+
 static void receive_deckpam(struct terminal *terminal, character_t character) {
   terminal->lock_state.num = 0;
   terminal_update_keyboard_leds(terminal);
@@ -1290,6 +1306,7 @@ static const receive_table_t utf8_continuation_receive_table = {
 
 static const receive_table_t esc_receive_table = {
     DEFAULT_RECEIVE_TABLE,
+    RECEIVE_HANDLER(' ', receive_space),
     RECEIVE_HANDLER('(', receive_scs),
     RECEIVE_HANDLER(')', receive_scs),
     RECEIVE_HANDLER('*', receive_scs),
@@ -1409,6 +1426,13 @@ static const receive_table_t esc_hash_receive_table = {
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
+static const receive_table_t esc_space_receive_table = {
+    DEFAULT_RECEIVE_TABLE,
+    RECEIVE_HANDLER('F', receive_s7c1t),
+    RECEIVE_HANDLER('G', receive_s8c1t),
+    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
+};
+
 static const receive_table_t scs_receive_table = {
     DEFAULT_RECEIVE_TABLE,
     RECEIVE_HANDLER('A', receive_scs_set),
@@ -1441,14 +1465,44 @@ void terminal_uart_transmit_character(struct terminal *terminal,
   terminal->callbacks->uart_transmit(terminal->transmit_buffer, 1);
 }
 
+static const character_t
+    eight_bit_character_table[CHARACTER_DECODER_TABLE_LENGTH] = {
+        ['D'] = 0x84,  ['E'] = 0x85, ['H'] = 0x88, ['M'] = 0x8d,
+        ['N'] = 0x8e,  ['O'] = 0x8f, ['P'] = 0x90, ['V'] = 0x96,
+        ['W'] = 0x97,  ['X'] = 0x98, ['Z'] = 0x9a, ['['] = 0x9b,
+        ['\\'] = 0x9c, [']'] = 0x9d, ['^'] = 0x9e, ['_'] = 0x9f,
+};
+
 void terminal_uart_transmit_string(struct terminal *terminal,
                                    const char *string) {
-  size_t len = strlen(string);
-  memcpy(terminal->transmit_buffer, string, len);
-  terminal->callbacks->uart_transmit(terminal->transmit_buffer, len);
+  size_t len = 0;
 
-  // TODO: len > transmit_buffer_size
-  // TODO: Rewrite 8-bit control codes
+  while (*string) {
+    if (len == terminal->transmit_buffer_size) {
+      terminal->callbacks->uart_transmit(terminal->transmit_buffer, len);
+      len = 0;
+    }
+
+    if (terminal->c1_mode == C1_MODE_8BIT && *string == '\x1b') {
+      const char *next = string + 1;
+      character_t eight_bit_character =
+          eight_bit_character_table[(size_t)*next];
+
+      if (eight_bit_character) {
+        terminal->transmit_buffer[len] = eight_bit_character;
+        len++;
+        string += 2;
+
+        continue;
+      }
+    }
+
+    terminal->transmit_buffer[len] = *string;
+    len++;
+    string++;
+  }
+
+  terminal->callbacks->uart_transmit(terminal->transmit_buffer, len);
 }
 
 void terminal_uart_transmit_printf(struct terminal *terminal,
@@ -1475,6 +1529,7 @@ void terminal_uart_init(struct terminal *terminal) {
   clear_control_data(&terminal->pm);
 
   terminal->gset_received = GSET_UNDEFINED;
+  terminal->c1_mode = C1_MODE_7BIT;
 
   terminal->vs.gset_gl = GSET_G0;
   memset(terminal->vs.gset_table, 0,
