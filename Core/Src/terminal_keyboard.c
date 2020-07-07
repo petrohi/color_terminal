@@ -74,9 +74,26 @@ static void handle_num_lock(struct terminal *terminal) {
   terminal_update_keyboard_leds(terminal);
 }
 
-static void handle_scroll_lock(struct terminal *terminal) {
-  terminal->lock_state.scroll ^= 1;
+static void update_scroll_lock(struct terminal *terminal, bool scroll_lock) {
+  terminal->lock_state.scroll = scroll_lock;
   terminal_update_keyboard_leds(terminal);
+
+  if (terminal->lock_state.scroll)
+    terminal_uart_transmit_character(terminal, CHAR_XOFF);
+  else
+    terminal_uart_transmit_character(terminal, CHAR_XON);
+}
+
+static void handle_scroll_lock(struct terminal *terminal) {
+  update_scroll_lock(terminal, !terminal->lock_state.scroll);
+}
+
+static void handle_ctrl_s(struct terminal *terminal) {
+  update_scroll_lock(terminal, true);
+}
+
+static void handle_ctrl_q(struct terminal *terminal) {
+  update_scroll_lock(terminal, false);
 }
 
 #define KEY_IGNORE                                                             \
@@ -99,7 +116,7 @@ static void handle_scroll_lock(struct terminal *terminal) {
       .router = &(const struct keys_router) {                                  \
         r, (const struct keys_entry[]) { __VA_ARGS__ }                         \
       }                                                                        \
-    }                                                                          \
+   }                                                                          \
   }
 
 static const struct keys_entry *entries = (struct keys_entry[]){
@@ -140,11 +157,11 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_case, KEY_CHR('p'), KEY_CHR('P')),
                KEY_CHR('\x10')), // P
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_case, KEY_CHR('q'), KEY_CHR('Q')),
-               KEY_CHR('\x11')), // Q
+               KEY_HANDLER(handle_ctrl_q)), // Q
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_case, KEY_CHR('r'), KEY_CHR('R')),
                KEY_CHR('\x12')), // R
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_case, KEY_CHR('s'), KEY_CHR('S')),
-               KEY_CHR('\x13')), // S
+               KEY_HANDLER(handle_ctrl_s)), // S
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_case, KEY_CHR('t'), KEY_CHR('T')),
                KEY_CHR('\x14')), // T
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_case, KEY_CHR('u'), KEY_CHR('U')),

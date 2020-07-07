@@ -26,10 +26,10 @@ static void clear_receive_table(struct terminal *terminal) {
 
 #ifdef DEBUG
   if (terminal->unhandled)
-    printf("*%s\r\n", terminal->debug_buffer);
+    printf("UNHANLED ESC: %s\r\n", terminal->debug_buffer);
 #ifdef DEBUG_LOG_HANDLED_ESC
   else
-    printf("%s\r\n", terminal->debug_buffer);
+    printf("ESC: %s\r\n", terminal->debug_buffer);
 #endif
 #endif
 }
@@ -1525,6 +1525,17 @@ void terminal_uart_transmit_printf(struct terminal *terminal,
   va_end(args);
 }
 
+void terminal_uart_xon_off(struct terminal *terminal, enum xon_off xon_off) {
+  if (!terminal->lock_state.scroll && terminal->xon_off != xon_off) {
+    terminal_uart_transmit_character(terminal,
+                                     xon_off == XOFF ? CHAR_XOFF : CHAR_XON);
+    terminal->xon_off = xon_off;
+#ifdef DEBUG_LOG_XON_OFF
+    printf(xon_off == XOFF ? "XOFF\r\n" : "XON\r\n");
+#endif
+  }
+}
+
 void terminal_uart_init(struct terminal *terminal) {
   terminal->send_receive_mode = true;
 
@@ -1540,6 +1551,7 @@ void terminal_uart_init(struct terminal *terminal) {
 
   terminal->gset_received = GSET_UNDEFINED;
   terminal->c1_mode = C1_MODE_7BIT;
+  terminal->xon_off = XON;
 
   terminal->vs.gset_gl = GSET_G0;
   memset(terminal->vs.gset_table, 0,

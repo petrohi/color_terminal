@@ -94,6 +94,11 @@ enum c1_mode {
   C1_MODE_8BIT,
 };
 
+enum xon_off {
+  XON,
+  XOFF,
+};
+
 struct visual_state {
   int16_t cursor_row;
   int16_t cursor_col;
@@ -180,6 +185,7 @@ struct terminal {
 
   enum gset gset_received;
   enum c1_mode c1_mode;
+  enum xon_off xon_off;
 
 #ifdef DEBUG
 #define DEBUG_BUFFER_LENGTH 128
@@ -199,6 +205,18 @@ void terminal_keyboard_handle_ctrl(struct terminal *terminal, bool ctrl);
 
 void terminal_uart_receive_character(struct terminal *terminal,
                                      character_t character);
+void terminal_uart_receive_string(struct terminal *terminal,
+                                  const char *string);
+
+void terminal_uart_transmit_character(struct terminal *terminal,
+                                      character_t character);
+void terminal_uart_transmit_string(struct terminal *terminal,
+                                   const char *string);
+void terminal_uart_transmit_printf(struct terminal *terminal,
+                                   const char *format, ...);
+
+void terminal_uart_xon_off(struct terminal *terminal, enum xon_off xon_off);
+
 void terminal_timer_tick(struct terminal *terminal);
 void terminal_screen_update(struct terminal *terminal);
 void terminal_keyboard_repeat_key(struct terminal *terminal);

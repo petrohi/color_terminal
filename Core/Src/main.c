@@ -150,6 +150,21 @@ static void test_mandelbrot() {
 }
 */
 
+static void uart_transmit(void *data, uint16_t size) {
+#ifdef DEBUG_LOG_RX_TX
+  printf("TX: %d\r\n", size);
+#endif
+  while (HAL_UART_Transmit_DMA(&huart3, data, size) != HAL_OK)
+    ;
+}
+
+static void uart_receive(void *data, uint16_t size) {
+  while (HAL_UART_Receive_DMA(&huart3, data, size) != HAL_OK)
+    ;
+}
+
+static uint16_t uart_receive_ndtr() { return huart3.hdmarx->Instance->NDTR; }
+
 static void screen_draw_codepoint_callback(size_t row, size_t col,
                                            codepoint_t codepoint,
                                            enum font font, bool italic,
@@ -188,7 +203,10 @@ static void screen_shift_left_callback(size_t row, size_t col, size_t cols,
 struct terminal *global_terminal;
 
 #define UART_TRANSMIT_BUFFER_SIZE 64
-#define UART_RECEIVE_BUFFER_SIZE 1024 * 2
+#define UART_RECEIVE_BUFFER_SIZE 1024 * 4
+
+#define XOFF_LIMIT UART_RECEIVE_BUFFER_SIZE / 8
+#define KEYBOARD_CHARS_PER_POLL 80
 
 static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
 static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
@@ -225,9 +243,9 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_LTDC_Init();
-  MX_USART1_UART_Init();
   MX_USB_HOST_Init();
   MX_TIM1_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
   printf("Hello World\n");
@@ -255,7 +273,7 @@ int main(void)
   // screen_clear(ltdc_get_screen(), 15);
   // screen_clear(ltdc_get_screen(), 0);
 
-  uint16_t uart_receive_current_count = UART_RECEIVE_BUFFER_SIZE;
+  uint16_t uart_receive_current_offset = 0;
   uart_receive(uart_receive_buffer, UART_RECEIVE_BUFFER_SIZE);
 
   /* USER CODE END 2 */
@@ -273,18 +291,39 @@ int main(void)
     terminal_screen_update(&terminal);
     terminal_keyboard_repeat_key(&terminal);
 
-    uint16_t uart_receive_next_count = uart_receive_count();
-    if (uart_receive_current_count == uart_receive_next_count)
+    uint16_t uart_receive_next_offset =
+        UART_RECEIVE_BUFFER_SIZE - uart_receive_ndtr();
+    if (uart_receive_current_offset == uart_receive_next_offset) {
+      terminal_uart_xon_off(&terminal, XON);
       continue;
+    }
 
-    while (uart_receive_current_count != uart_receive_next_count) {
-      character_t character = uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE -
-                                                  uart_receive_current_count];
+    uint16_t size = 0;
+    if (uart_receive_current_offset < uart_receive_next_offset)
+      size = uart_receive_next_offset - uart_receive_current_offset;
+    else
+      size = uart_receive_next_offset +
+             (UART_RECEIVE_BUFFER_SIZE - uart_receive_current_offset);
+
+#ifdef DEBUG_LOG_RX_TX
+    printf("RX: %d\r\n", size);
+#endif
+
+    if (size > XOFF_LIMIT)
+      terminal_uart_xon_off(&terminal, XOFF);
+
+    while (size--) {
+      if (size % 80 == 0) {
+        MX_USB_HOST_Process();
+        keyboard_handle(&terminal);
+      }
+
+      character_t character = uart_receive_buffer[uart_receive_current_offset];
       terminal_uart_receive_character(&terminal, character);
-      uart_receive_current_count--;
+      uart_receive_current_offset++;
 
-      if (uart_receive_current_count == 0)
-        uart_receive_current_count = UART_RECEIVE_BUFFER_SIZE;
+      if (uart_receive_current_offset == UART_RECEIVE_BUFFER_SIZE)
+        uart_receive_current_offset = 0;
     }
   }
   /* USER CODE END 3 */

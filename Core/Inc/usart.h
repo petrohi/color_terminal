@@ -32,19 +32,15 @@
 
 /* USER CODE END Includes */
 
-extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
-void MX_USART1_UART_Init(void);
+void MX_USART3_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-
-void uart_transmit(void *data, uint16_t size);
-void uart_receive(void *data, uint16_t size);
-uint16_t uart_receive_count();
 
 /* USER CODE END Prototypes */
 

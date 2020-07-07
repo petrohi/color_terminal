@@ -2,17 +2,10 @@
 
 #include "terminal.h"
 
+#define CHAR_XOFF '\x13'
+#define CHAR_XON '\x11'
+
 void terminal_uart_init(struct terminal *terminal);
-
-void terminal_uart_transmit_character(struct terminal *terminal,
-                                      character_t character);
-void terminal_uart_transmit_string(struct terminal *terminal,
-                                   const char *string);
-void terminal_uart_transmit_printf(struct terminal *terminal,
-                                   const char *format, ...);
-
-void terminal_uart_receive_string(struct terminal *terminal,
-                                  const char *string);
 
 void terminal_keyboard_init(struct terminal *terminal);
 
