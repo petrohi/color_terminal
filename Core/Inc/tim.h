@@ -40,8 +40,6 @@ void MX_TIM1_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
-void start_timer();
-
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

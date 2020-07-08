@@ -33,13 +33,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 
-#include <stdbool.h>
-
-#include "usbh_hid_keybd.h"
-#include "terminal.h"
-
-void keyboard_handle(struct terminal *terminal);
-void keyboard_set_leds(struct lock_state state);
+#include "usbh_hid.h"
 
 /* USER CODE END INCLUDE */
 
@@ -68,6 +62,9 @@ typedef enum {
   APPLICATION_READY,
   APPLICATION_DISCONNECT
 }ApplicationTypeDef;
+
+extern USBH_HandleTypeDef hUsbHostHS;
+extern ApplicationTypeDef Appli_state;
 
 /** @defgroup USBH_HOST_Exported_FunctionsPrototype USBH_HOST_Exported_FunctionsPrototype
   * @brief Declaration of public functions for Usb host.

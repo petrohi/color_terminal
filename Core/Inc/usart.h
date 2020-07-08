@@ -28,8 +28,6 @@
 
 /* USER CODE BEGIN Includes */
 
-#include <stdbool.h>
-
 /* USER CODE END Includes */
 
 extern UART_HandleTypeDef huart3;

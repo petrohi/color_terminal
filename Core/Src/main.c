@@ -60,11 +60,6 @@
 
 /* USER CODE BEGIN PV */
 
-/*
-char rx_buffer[256];
-char buffer[256];
-*/
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -158,13 +153,6 @@ static void uart_transmit(void *data, uint16_t size) {
     ;
 }
 
-static void uart_receive(void *data, uint16_t size) {
-  while (HAL_UART_Receive_DMA(&huart3, data, size) != HAL_OK)
-    ;
-}
-
-static uint16_t uart_receive_ndtr() { return huart3.hdmarx->Instance->NDTR; }
-
 static void screen_draw_codepoint_callback(size_t row, size_t col,
                                            codepoint_t codepoint,
                                            enum font font, bool italic,
@@ -198,6 +186,27 @@ static void screen_shift_right_callback(size_t row, size_t col, size_t cols,
 static void screen_shift_left_callback(size_t row, size_t col, size_t cols,
                                        color_t inactive) {
   screen_shift_left(ltdc_get_screen(), row, col, cols, inactive);
+}
+
+static void keyboard_set_leds(struct lock_state state) {
+  uint8_t led_state =
+      (state.scroll ? 0x4 : 0) | (state.caps ? 0x2 : 0) | (state.num ? 1 : 0);
+  while (USBH_HID_SetReport(&hUsbHostHS, 0x02, 0x0, &led_state, 1) == USBH_BUSY)
+    ;
+}
+
+static void keyboard_handle(struct terminal *terminal) {
+  if (Appli_state == APPLICATION_READY) {
+
+    HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
+
+    if (info) {
+      terminal_keyboard_handle_shift(terminal, info->lshift || info->rshift);
+      terminal_keyboard_handle_alt(terminal, info->lalt || info->ralt);
+      terminal_keyboard_handle_ctrl(terminal, info->lctrl || info->rctrl);
+      terminal_keyboard_handle_key(terminal, info->keys[0]);
+    }
+  }
 }
 
 struct terminal *global_terminal;
@@ -264,7 +273,11 @@ int main(void)
   terminal_init(&terminal, &callbacks, uart_transmit_buffer,
                 UART_TRANSMIT_BUFFER_SIZE);
   global_terminal = &terminal;
-  start_timer();
+
+  HAL_TIM_Base_Start_IT(&htim1);
+  while (HAL_UART_Receive_DMA(&huart3, uart_receive_buffer,
+                              UART_RECEIVE_BUFFER_SIZE) != HAL_OK)
+    ;
 
   // screen_test_colors(ltdc_get_screen());
   // screen_scroll(ltdc_get_screen(), UP, 2, ROWS - 2, 2, 0);
@@ -274,7 +287,6 @@ int main(void)
   // screen_clear(ltdc_get_screen(), 0);
 
   uint16_t uart_receive_current_offset = 0;
-  uart_receive(uart_receive_buffer, UART_RECEIVE_BUFFER_SIZE);
 
   /* USER CODE END 2 */
 
@@ -292,7 +304,7 @@ int main(void)
     terminal_keyboard_repeat_key(&terminal);
 
     uint16_t uart_receive_next_offset =
-        UART_RECEIVE_BUFFER_SIZE - uart_receive_ndtr();
+        UART_RECEIVE_BUFFER_SIZE - huart3.hdmarx->Instance->NDTR;
     if (uart_receive_current_offset == uart_receive_next_offset) {
       terminal_uart_xon_off(&terminal, XON);
       continue;

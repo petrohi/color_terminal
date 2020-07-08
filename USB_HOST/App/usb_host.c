@@ -48,27 +48,6 @@ ApplicationTypeDef Appli_state = APPLICATION_IDLE;
  */
 /* USER CODE BEGIN 0 */
 
-void keyboard_set_leds(struct lock_state state) {
-  uint8_t led_state =
-      (state.scroll ? 0x4 : 0) | (state.caps ? 0x2 : 0) | (state.num ? 1 : 0);
-  while (USBH_HID_SetReport(&hUsbHostHS, 0x02, 0x0, &led_state, 1) == USBH_BUSY)
-    ;
-}
-
-void keyboard_handle(struct terminal *terminal) {
-  if (Appli_state == APPLICATION_READY) {
-
-    HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
-
-    if (info) {
-      terminal_keyboard_handle_shift(terminal, info->lshift || info->rshift);
-      terminal_keyboard_handle_alt(terminal, info->lalt || info->ralt);
-      terminal_keyboard_handle_ctrl(terminal, info->lctrl || info->rctrl);
-      terminal_keyboard_handle_key(terminal, info->keys[0]);
-    }
-  }
-}
-
 /* USER CODE END 0 */
 
 /*
