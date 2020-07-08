@@ -82,6 +82,7 @@ Core/Src/terminal.c \
 Core/Src/terminal_screen.c \
 Core/Src/terminal_uart.c \
 Core/Src/terminal_keyboard.c \
+Core/Src/terminal_config.c \
 Core/Src/tim.c \
 Core/Src/dma.c
 
@@ -133,8 +134,8 @@ AS_DEFS =
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32F429xx \
--DDEBUG
-
+-DDEBUG \
+-DDEBUG_LOG_RX_TX
 
 # AS includes
 AS_INCLUDES = 
