@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "terminal_config.h"
+
 struct lock_state {
   uint8_t caps : 1;
   uint8_t scroll : 1;
@@ -31,8 +33,7 @@ typedef uint16_t codepoint_t;
 
 struct terminal_callbacks {
   void (*keyboard_set_leds)(struct lock_state state);
-  void (*uart_transmit)(void *data, uint16_t size);
-  void (*uart_receive)(void *data, uint16_t size);
+  void (*uart_transmit)(character_t *characters, size_t size);
   void (*screen_draw_codepoint)(size_t row, size_t col, codepoint_t codepoint,
                                 enum font font, bool italic, bool underlined,
                                 bool crossedout, color_t active,

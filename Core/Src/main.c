@@ -34,7 +34,7 @@
 #include <string.h>
 
 #include "terminal.h"
-#include "terminal_config.h"
+#include "terminal_config_ui.h"
 
 /* USER CODE END Includes */
 
@@ -147,7 +147,7 @@ static void test_mandelbrot() {
 */
 
 struct terminal *global_terminal;
-struct terminal_config *global_terminal_config;
+struct terminal_config_ui *global_terminal_config_ui;
 
 #define UART_TRANSMIT_BUFFER_SIZE 64
 #define UART_RECEIVE_BUFFER_SIZE 1024 * 4
@@ -155,16 +155,15 @@ struct terminal_config *global_terminal_config;
 #define XOFF_LIMIT UART_RECEIVE_BUFFER_SIZE / 8
 #define KEYBOARD_CHARS_PER_POLL 80
 
-static void uart_transmit(void *data, uint16_t size) {
-  if (global_terminal_config->in_config) {
-    for (size_t i = 0; i < size; ++i)
-      terminal_config_receive_character(global_terminal_config,
-                                        ((character_t *)data)[i]);
+static void uart_transmit(character_t *characters, size_t size) {
+  if (global_terminal_config_ui->activated) {
+    terminal_config_ui_receive_characters(global_terminal_config_ui, characters,
+                                       size);
   } else {
 #ifdef DEBUG_LOG_RX_TX
     printf("TX: %d\r\n", size);
 #endif
-    while (HAL_UART_Transmit_DMA(&huart3, data, size) != HAL_OK)
+    while (HAL_UART_Transmit_DMA(&huart3, (void *)characters, size) != HAL_OK)
       ;
   }
 }
@@ -218,7 +217,7 @@ static void keyboard_handle(struct terminal *terminal) {
 
     if (info) {
       if (info->keys[0] == KEY_F12 && (info->lshift || info->rshift)) {
-        terminal_config_enter(global_terminal_config);
+        terminal_config_ui_enter(global_terminal_config_ui);
       } else {
         terminal_keyboard_handle_shift(terminal, info->lshift || info->rshift);
         terminal_keyboard_handle_alt(terminal, info->lalt || info->ralt);
@@ -231,6 +230,13 @@ static void keyboard_handle(struct terminal *terminal) {
 
 static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
 static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
+
+__attribute__((__section__(".flash_data"))) struct terminal_config terminal_config = {
+  .baud_rate = BAUD_RATE_921600, .word_length = WORD_LENGTH_8B,
+  .word_length = WORD_LENGTH_8B,
+  .stop_bits = STOP_BITS_1,
+  .parity = PARITY_NONE,
+};
 
 /* USER CODE END 0 */
 
@@ -286,9 +292,9 @@ int main(void)
                 UART_TRANSMIT_BUFFER_SIZE);
   global_terminal = &terminal;
 
-  struct terminal_config terminal_config;
-  global_terminal_config = &terminal_config;
-  terminal_config_init(&terminal_config, &terminal);
+  struct terminal_config_ui terminal_config_ui;
+  global_terminal_config_ui = &terminal_config_ui;
+  terminal_config_ui_init(&terminal_config_ui, &terminal, &terminal_config);
 
   HAL_TIM_Base_Start_IT(&htim1);
   while (HAL_UART_Receive_DMA(&huart3, uart_receive_buffer,
@@ -319,7 +325,7 @@ int main(void)
     terminal_screen_update(&terminal);
     terminal_keyboard_repeat_key(&terminal);
 
-    if (terminal_config.in_config)
+    if (terminal_config_ui.activated)
       continue;
 
     uint16_t uart_receive_next_offset =
