@@ -137,6 +137,7 @@ struct terminal {
   bool auto_repeat_mode;
   bool send_receive_mode;
   bool ansi_mode;
+  bool backspace_mode;
 
   bool auto_wrap_mode;
   bool scrolling_mode; // TODO

@@ -308,6 +308,9 @@ int main(void)
   // screen_clear(ltdc_get_screen(), 15);
   // screen_clear(ltdc_get_screen(), 0);
 
+  //screen_test_mandelbrot(ltdc_get_screen(), MANDELBROT_X, MANDELBROT_Y,
+  //                       MANDELBROT_R, NULL);
+
   uint16_t uart_receive_current_offset = 0;
 
   /* USER CODE END 2 */

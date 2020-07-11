@@ -56,6 +56,10 @@ static size_t get_ansi_mode(struct terminal *terminal) {
   return terminal->ansi_mode;
 }
 
+static size_t get_backspace_mode(struct terminal *terminal) {
+  return terminal->backspace_mode;
+}
+
 static size_t get_num(struct terminal *terminal) {
   return terminal->lock_state.num;
 }
@@ -194,13 +198,15 @@ static const struct keys_entry *entries = (struct keys_entry[]){
     KEY_ROUTER(get_shift, KEY_CHR('9'), KEY_CHR('(')), // 9_OPARENTHESIS
     KEY_ROUTER(get_shift, KEY_CHR('0'), KEY_CHR(')')), // 0_CPARENTHESIS
     KEY_ROUTER(get_new_line_mode, KEY_CHR('\x0d'),
-               KEY_STR("\x0d\x0a")),                        // ENTER
-    KEY_CHR('\x1b'),                                        // ESCAPE
-    KEY_ROUTER(get_ctrl, KEY_CHR('\x7f'), KEY_CHR('\x18')), // BACKSPACE
-    KEY_CHR('\x09'),                                        // TAB
-    KEY_ROUTER(get_ctrl, KEY_CHR(' '), KEY_CHR('\0')),      // SPACEBAR
-    KEY_ROUTER(get_shift, KEY_CHR('-'), KEY_CHR('_')),      // MINUS_UNDERSCORE
-    KEY_ROUTER(get_shift, KEY_CHR('='), KEY_CHR('+')),      // EQUAL_PLUS
+               KEY_STR("\x0d\x0a")), // ENTER
+    KEY_CHR('\x1b'),                 // ESCAPE
+    KEY_ROUTER(get_ctrl,
+               KEY_ROUTER(get_backspace_mode, KEY_CHR('\x7f'), KEY_CHR('\x08')),
+               KEY_CHR('\x08')),                       // BACKSPACE
+    KEY_CHR('\x09'),                                   // TAB
+    KEY_ROUTER(get_ctrl, KEY_CHR(' '), KEY_CHR('\0')), // SPACEBAR
+    KEY_ROUTER(get_shift, KEY_CHR('-'), KEY_CHR('_')), // MINUS_UNDERSCORE
+    KEY_ROUTER(get_shift, KEY_CHR('='), KEY_CHR('+')), // EQUAL_PLUS
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_shift, KEY_CHR('['), KEY_CHR('{')),
                KEY_CHR('\x1b')), // OBRACKET_AND_OBRACE
     KEY_ROUTER(get_ctrl, KEY_ROUTER(get_shift, KEY_CHR(']'), KEY_CHR('}')),
@@ -378,4 +384,5 @@ void terminal_keyboard_init(struct terminal *terminal) {
   terminal->keyboard_action_mode = false;
   terminal->auto_repeat_mode = true;
   terminal->ansi_mode = true;
+  terminal->backspace_mode = false;
 }
