@@ -155,6 +155,34 @@ struct terminal_config_ui *global_terminal_config_ui;
 #define XOFF_LIMIT UART_RECEIVE_BUFFER_SIZE / 8
 #define KEYBOARD_CHARS_PER_POLL 80
 
+static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
+static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
+
+__attribute__((
+    __section__(".flash_data"))) struct terminal_config terminal_config = {
+    .baud_rate = BAUD_RATE_115200,
+    .word_length = WORD_LENGTH_8B,
+    .word_length = WORD_LENGTH_8B,
+    .stop_bits = STOP_BITS_1,
+    .parity = PARITY_NONE,
+
+    .charset = CHARSET_UTF8,
+    .c1_mode = C1_MODE_7BIT,
+
+    .auto_wrap_mode = true,
+    .screen_mode = false,
+
+    .send_receive_mode = true,
+
+    .new_line_mode = false,
+    .cursor_key_mode = false,
+    .auto_repeat_mode = true,
+    .ansi_mode = true,
+    .backspace_mode = false,
+
+    .start_up = START_UP_MESSAGE,
+};
+
 static void uart_transmit(character_t *characters, size_t size) {
   if (global_terminal_config_ui->activated) {
     terminal_config_ui_receive_characters(global_terminal_config_ui, characters,
@@ -221,6 +249,21 @@ static void system_test_callback(enum system_test system_test) {
   }
 }
 
+static void
+system_write_config_callback(struct terminal_config *terminal_config_copy) {
+  HAL_FLASH_Unlock();
+  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR |
+                         FLASH_FLAG_PGAERR | FLASH_FLAG_PGSERR);
+  FLASH_Erase_Sector(FLASH_SECTOR_11, VOLTAGE_RANGE_3);
+
+  for (size_t i = 0; i < sizeof(struct terminal_config); ++i)
+    HAL_FLASH_Program(TYPEPROGRAM_BYTE,
+                      (uint32_t)((uint8_t *)&terminal_config + i),
+                      *(((uint8_t *)terminal_config_copy) + i));
+
+  HAL_FLASH_Lock();
+}
+
 static void keyboard_set_leds(struct lock_state state) {
   uint8_t led_state =
       (state.scroll ? 0x4 : 0) | (state.caps ? 0x2 : 0) | (state.num ? 1 : 0);
@@ -245,34 +288,6 @@ static void keyboard_handle(struct terminal *terminal) {
     }
   }
 }
-
-static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
-static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
-
-__attribute__((
-    __section__(".flash_data"))) struct terminal_config terminal_config = {
-    .baud_rate = BAUD_RATE_115200,
-    .word_length = WORD_LENGTH_8B,
-    .word_length = WORD_LENGTH_8B,
-    .stop_bits = STOP_BITS_1,
-    .parity = PARITY_NONE,
-
-    .charset = CHARSET_UTF8,
-    .c1_mode = C1_MODE_7BIT,
-
-    .auto_wrap_mode = true,
-    .screen_mode = false,
-
-    .send_receive_mode = true,
-
-    .new_line_mode = false,
-    .cursor_key_mode = false,
-    .auto_repeat_mode = true,
-    .ansi_mode = true,
-    .backspace_mode = false,
-
-    .start_up = START_UP_MESSAGE,
-};
 
 /* USER CODE END 0 */
 
@@ -325,7 +340,8 @@ int main(void) {
       .screen_shift_left = screen_shift_left_callback,
       .screen_shift_right = screen_shift_right_callback,
       .system_reset = HAL_NVIC_SystemReset,
-      .system_test = system_test_callback};
+      .system_test = system_test_callback,
+      .system_write_config = system_write_config_callback};
   terminal_init(&terminal, &callbacks, &terminal_config, uart_transmit_buffer,
                 UART_TRANSMIT_BUFFER_SIZE);
   global_terminal = &terminal;

@@ -56,6 +56,7 @@ struct terminal_callbacks {
                             color_t inactive);
   void (*system_reset)();
   void (*system_test)(enum system_test systetm_test);
+  void (*system_write_config)(struct terminal_config *terminal_config_copy);
 };
 
 struct terminal;

@@ -4,8 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "stm32f4xx_hal.h"
-
 #define PRINTF_BUFFER_SIZE 256
 
 static size_t current_baud_rate(struct terminal_config_ui *terminal_config_ui) {
@@ -561,22 +559,6 @@ static void enter(struct terminal_config_ui *terminal_config_ui) {
   render_help(terminal_config_ui);
 }
 
-static void
-write_terminal_config(struct terminal_config_ui *terminal_config_ui) {
-  HAL_FLASH_Unlock();
-  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR |
-                         FLASH_FLAG_PGAERR | FLASH_FLAG_PGSERR);
-  FLASH_Erase_Sector(FLASH_SECTOR_11, VOLTAGE_RANGE_3);
-
-  for (size_t i = 0; i < sizeof(struct terminal_config); ++i)
-    HAL_FLASH_Program(
-        TYPEPROGRAM_BYTE,
-        (uint32_t)((uint8_t *)terminal_config_ui->terminal_config + i),
-        *(((uint8_t *)&terminal_config_ui->terminal_config_copy) + i));
-
-  HAL_FLASH_Lock();
-}
-
 static void leave(struct terminal_config_ui *terminal_config_ui) {
   if (terminal_config_ui->current_choice) {
     clear_help(terminal_config_ui);
@@ -595,8 +577,9 @@ static void apply(struct terminal_config_ui *terminal_config_ui) {
   clear_screen(terminal_config_ui);
   move_cursor(terminal_config_ui, 1, 1);
   screen_printf(terminal_config_ui, "Writing config...");
+  terminal_config_ui->terminal->callbacks->system_write_config(
+      &terminal_config_ui->terminal_config_copy);
 
-  write_terminal_config(terminal_config_ui);
   terminal_uart_xon_off(terminal_config_ui->terminal, XON);
   screen_printf(terminal_config_ui, "\033c");
 }
