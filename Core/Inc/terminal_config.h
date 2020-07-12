@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 enum baud_rate {
   BAUD_RATE_110 = 0,
@@ -76,3 +77,5 @@ struct terminal_config {
 
   enum start_up start_up;
 };
+
+uint32_t terminal_config_get_baud_rate(struct terminal_config *terminal_config);

@@ -83,6 +83,7 @@ Core/Src/terminal_screen.c \
 Core/Src/terminal_uart.c \
 Core/Src/terminal_keyboard.c \
 Core/Src/terminal_config_ui.c \
+Core/Src/terminal_config.c \
 Core/Src/tim.c \
 Core/Src/dma.c
 

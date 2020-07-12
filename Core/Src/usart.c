@@ -26,22 +26,6 @@
 
 extern struct terminal_config terminal_config;
 
-const static uint32_t baud_rates[] = {
-  [BAUD_RATE_110] = 110,
-  [BAUD_RATE_150] = 150,
-  [BAUD_RATE_300] = 300,
-  [BAUD_RATE_1200] = 1200,
-  [BAUD_RATE_2400] = 2400,
-  [BAUD_RATE_4800] = 4800,
-  [BAUD_RATE_9600] = 9600,
-  [BAUD_RATE_19200] = 19200,
-  [BAUD_RATE_38400] = 38400,
-  [BAUD_RATE_57600] = 57600,
-  [BAUD_RATE_115200] = 115200,
-  [BAUD_RATE_230400] = 230400,
-  [BAUD_RATE_460800] = 460800,
-  [BAUD_RATE_921600] = 921600,
-};
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart3;
@@ -54,7 +38,7 @@ void MX_USART3_UART_Init(void)
 {
 
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = baud_rates[terminal_config.baud_rate];
+  huart3.Init.BaudRate = terminal_config_get_baud_rate(&terminal_config);
   switch (terminal_config.word_length) {
   case WORD_LENGTH_8B:
     huart3.Init.WordLength = UART_WORDLENGTH_8B;
