@@ -614,13 +614,6 @@ void terminal_screen_set_screen_mode(struct terminal *terminal, bool mode) {
 }
 
 void terminal_screen_init(struct terminal *terminal) {
-  terminal->auto_wrap_mode = true;
-  terminal->scrolling_mode = false;
-  terminal->column_mode = false;
-  terminal->screen_mode = false;
-  terminal->origin_mode = false;
-  terminal->insert_mode = false;
-
   terminal->vs.cursor_row = 0;
   terminal->vs.cursor_col = 0;
   terminal->vs.cursor_last_col = false;

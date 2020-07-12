@@ -22,6 +22,26 @@
 
 /* USER CODE BEGIN 0 */
 
+#include "terminal_config.h"
+
+extern struct terminal_config terminal_config;
+
+const static uint32_t baud_rates[] = {
+  [BAUD_RATE_110] = 110,
+  [BAUD_RATE_150] = 150,
+  [BAUD_RATE_300] = 300,
+  [BAUD_RATE_1200] = 1200,
+  [BAUD_RATE_2400] = 2400,
+  [BAUD_RATE_4800] = 4800,
+  [BAUD_RATE_9600] = 9600,
+  [BAUD_RATE_19200] = 19200,
+  [BAUD_RATE_38400] = 38400,
+  [BAUD_RATE_57600] = 57600,
+  [BAUD_RATE_115200] = 115200,
+  [BAUD_RATE_230400] = 230400,
+  [BAUD_RATE_460800] = 460800,
+  [BAUD_RATE_921600] = 921600,
+};
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart3;
@@ -34,10 +54,34 @@ void MX_USART3_UART_Init(void)
 {
 
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 921600;
-  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-  huart3.Init.StopBits = UART_STOPBITS_1;
-  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.BaudRate = baud_rates[terminal_config.baud_rate];
+  switch (terminal_config.word_length) {
+  case WORD_LENGTH_8B:
+    huart3.Init.WordLength = UART_WORDLENGTH_8B;
+    break;
+  case WORD_LENGTH_9B:
+    huart3.Init.WordLength = UART_WORDLENGTH_9B;
+    break;
+  }
+  switch (terminal_config.stop_bits) {
+  case STOP_BITS_1:
+    huart3.Init.StopBits = UART_STOPBITS_1;
+    break;
+  case STOP_BITS_2:
+    huart3.Init.StopBits = UART_STOPBITS_2;
+    break;
+  }
+  switch (terminal_config.parity) {
+  case PARITY_NONE:
+    huart3.Init.Parity = UART_PARITY_NONE;
+    break;
+  case PARITY_EVEN:
+    huart3.Init.Parity = UART_PARITY_EVEN;
+    break;
+  case PARITY_ODD:
+    huart3.Init.Parity = UART_PARITY_ODD;
+    break;
+  }
   huart3.Init.Mode = UART_MODE_TX_RX;
   huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart3.Init.OverSampling = UART_OVERSAMPLING_16;

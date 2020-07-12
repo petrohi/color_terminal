@@ -203,6 +203,24 @@ static void screen_shift_left_callback(size_t row, size_t col, size_t cols,
   screen_shift_left(ltdc_get_screen(), row, col, cols, inactive);
 }
 
+static void system_test_callback(enum system_test system_test) {
+  switch (system_test) {
+  case SYSTEM_TEST_FONT1:
+    screen_test_fonts(ltdc_get_screen(), FONT_NORMAL);
+    break;
+  case SYSTEM_TEST_FONT2:
+    screen_test_fonts(ltdc_get_screen(), FONT_BOLD);
+    break;
+  case SYSTEM_TEST_COLOR1:
+    screen_test_colors(ltdc_get_screen());
+    break;
+  case SYSTEM_TEST_COLOR2:
+    screen_test_mandelbrot(ltdc_get_screen(), MANDELBROT_X, MANDELBROT_Y,
+                           MANDELBROT_R, NULL);
+    break;
+  }
+}
+
 static void keyboard_set_leds(struct lock_state state) {
   uint8_t led_state =
       (state.scroll ? 0x4 : 0) | (state.caps ? 0x2 : 0) | (state.num ? 1 : 0);
@@ -231,28 +249,47 @@ static void keyboard_handle(struct terminal *terminal) {
 static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
 static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
 
-__attribute__((__section__(".flash_data"))) struct terminal_config terminal_config = {
-  .baud_rate = BAUD_RATE_921600, .word_length = WORD_LENGTH_8B,
-  .word_length = WORD_LENGTH_8B,
-  .stop_bits = STOP_BITS_1,
-  .parity = PARITY_NONE,
+__attribute__((
+    __section__(".flash_data"))) struct terminal_config terminal_config = {
+    .baud_rate = BAUD_RATE_115200,
+    .word_length = WORD_LENGTH_8B,
+    .word_length = WORD_LENGTH_8B,
+    .stop_bits = STOP_BITS_1,
+    .parity = PARITY_NONE,
+
+    .charset = CHARSET_UTF8,
+    .c1_mode = C1_MODE_7BIT,
+
+    .auto_wrap_mode = true,
+    .screen_mode = false,
+
+    .send_receive_mode = true,
+
+    .new_line_mode = false,
+    .cursor_key_mode = false,
+    .auto_repeat_mode = true,
+    .ansi_mode = true,
+    .backspace_mode = false,
+
+    .start_up = START_UP_MESSAGE,
 };
 
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
+ * @brief  The application entry point.
+ * @retval int
+ */
+int main(void) {
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+  /* MCU
+   * Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  /* Reset of all peripherals, Initializes the Flash interface and the
+   * Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -287,8 +324,9 @@ int main(void)
       .screen_scroll = screen_scroll_callback,
       .screen_shift_left = screen_shift_left_callback,
       .screen_shift_right = screen_shift_right_callback,
-      .system_reset = HAL_NVIC_SystemReset};
-  terminal_init(&terminal, &callbacks, uart_transmit_buffer,
+      .system_reset = HAL_NVIC_SystemReset,
+      .system_test = system_test_callback};
+  terminal_init(&terminal, &callbacks, &terminal_config, uart_transmit_buffer,
                 UART_TRANSMIT_BUFFER_SIZE);
   global_terminal = &terminal;
 
@@ -301,24 +339,13 @@ int main(void)
                               UART_RECEIVE_BUFFER_SIZE) != HAL_OK)
     ;
 
-  // screen_test_colors(ltdc_get_screen());
-  // screen_scroll(ltdc_get_screen(), UP, 2, ROWS - 2, 2, 0);
-  // screen_scroll(ltdc_get_screen(), DOWN, 2, ROWS - 2, 2, 0);
-  // screen_test_fonts(ltdc_get_screen(), FONT_NORMAL);
-  // screen_clear(ltdc_get_screen(), 15);
-  // screen_clear(ltdc_get_screen(), 0);
-
-  //screen_test_mandelbrot(ltdc_get_screen(), MANDELBROT_X, MANDELBROT_Y,
-  //                       MANDELBROT_R, NULL);
-
   uint16_t uart_receive_current_offset = 0;
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+  while (1) {
     /* USER CODE END WHILE */
     MX_USB_HOST_Process();
 

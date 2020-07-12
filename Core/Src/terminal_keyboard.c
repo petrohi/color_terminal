@@ -378,11 +378,4 @@ void terminal_keyboard_init(struct terminal *terminal) {
   terminal->lock_state.caps = 0;
   terminal->lock_state.scroll = 0;
   terminal->lock_state.num = 0;
-
-  terminal->new_line_mode = false;
-  terminal->cursor_key_mode = false;
-  terminal->keyboard_action_mode = false;
-  terminal->auto_repeat_mode = true;
-  terminal->ansi_mode = true;
-  terminal->backspace_mode = false;
 }

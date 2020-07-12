@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 enum baud_rate {
   BAUD_RATE_110 = 0,
   BAUD_RATE_150 = 1,
@@ -33,10 +35,44 @@ enum parity {
   PARITY_ODD = 2,
 };
 
+enum c1_mode {
+  C1_MODE_7BIT,
+  C1_MODE_8BIT,
+};
+
+enum charset {
+  CHARSET_ASCII,
+  CHARSET_UTF8,
+};
+
+enum start_up {
+  START_UP_NONE,
+  START_UP_MESSAGE,
+  START_UP_TEST_FONT1,
+  START_UP_TEST_FONT2,
+  START_UP_TEST_COLOR1,
+  START_UP_TEST_COLOR2,
+};
+
 struct terminal_config {
   enum baud_rate baud_rate;
   enum word_length word_length;
   enum stop_bits stop_bits;
   enum parity parity;
-};
 
+  enum charset charset;
+  enum c1_mode c1_mode;
+
+  bool auto_wrap_mode;
+  bool screen_mode;
+
+  bool send_receive_mode;
+
+  bool new_line_mode;
+  bool cursor_key_mode;
+  bool auto_repeat_mode;
+  bool ansi_mode;
+  bool backspace_mode;
+
+  enum start_up start_up;
+};

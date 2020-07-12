@@ -31,6 +31,13 @@ typedef uint16_t codepoint_t;
 #define COLS 80
 #define ROWS 24
 
+enum system_test {
+  SYSTEM_TEST_FONT1,
+  SYSTEM_TEST_FONT2,
+  SYSTEM_TEST_COLOR1,
+  SYSTEM_TEST_COLOR2,
+};
+
 struct terminal_callbacks {
   void (*keyboard_set_leds)(struct lock_state state);
   void (*uart_transmit)(character_t *characters, size_t size);
@@ -48,6 +55,7 @@ struct terminal_callbacks {
   void (*screen_shift_left)(size_t row, size_t col, size_t cols,
                             color_t inactive);
   void (*system_reset)();
+  void (*system_test)(enum system_test systetm_test);
 };
 
 struct terminal;
@@ -90,11 +98,6 @@ enum gset {
   GSET_MAX = 4,
 };
 
-enum c1_mode {
-  C1_MODE_7BIT,
-  C1_MODE_8BIT,
-};
-
 enum xon_off {
   XON,
   XOFF,
@@ -131,13 +134,8 @@ struct terminal {
   uint8_t alt_state : 1;
   uint8_t ctrl_state : 1;
 
-  bool new_line_mode;
-  bool cursor_key_mode;
-  bool keyboard_action_mode;
-  bool auto_repeat_mode;
-  bool send_receive_mode;
-  bool ansi_mode;
-  bool backspace_mode;
+  enum charset charset;
+  enum c1_mode c1_mode;
 
   bool auto_wrap_mode;
   bool scrolling_mode; // TODO
@@ -145,6 +143,15 @@ struct terminal {
   bool screen_mode;
   bool origin_mode;
   bool insert_mode;
+
+  bool send_receive_mode;
+
+  bool new_line_mode;
+  bool cursor_key_mode;
+  bool keyboard_action_mode;
+  bool auto_repeat_mode;
+  bool ansi_mode;
+  bool backspace_mode;
 
   struct visual_state vs;
   struct visual_state saved_vs;
@@ -164,7 +171,6 @@ struct terminal {
 
   struct visual_cell cells[ROWS * COLS];
 
-  const receive_table_t *default_receive_table;
   const receive_table_t *receive_table;
 
   character_t esc_params[ESC_MAX_PARAMS_COUNT][ESC_MAX_PARAM_LENGTH];
@@ -186,7 +192,6 @@ struct terminal {
   struct control_data pm;
 
   enum gset gset_received;
-  enum c1_mode c1_mode;
   enum xon_off xon_off;
 
 #ifdef DEBUG
@@ -199,6 +204,7 @@ struct terminal {
 
 void terminal_init(struct terminal *terminal,
                    const struct terminal_callbacks *callbacks,
+                   const struct terminal_config *config,
                    character_t *transmit_buffer, size_t transmit_buffer_size);
 void terminal_keyboard_handle_key(struct terminal *terminal, uint8_t key);
 void terminal_keyboard_handle_shift(struct terminal *terminal, bool shift);

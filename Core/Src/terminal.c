@@ -13,11 +13,31 @@ void terminal_timer_tick(struct terminal *terminal) {
 
 void terminal_init(struct terminal *terminal,
                    const struct terminal_callbacks *callbacks,
+                   const struct terminal_config *config,
                    character_t *transmit_buffer, size_t transmit_buffer_size) {
   terminal->callbacks = callbacks;
 
   terminal->transmit_buffer = transmit_buffer;
   terminal->transmit_buffer_size = transmit_buffer_size;
+
+  terminal->charset = config->charset;
+  terminal->c1_mode = config->c1_mode;
+
+  terminal->auto_wrap_mode = config->auto_wrap_mode;
+  terminal->scrolling_mode = false;
+  terminal->column_mode = false;
+  terminal->screen_mode = config->screen_mode;
+  terminal->origin_mode = false;
+  terminal->insert_mode = false;
+
+  terminal->send_receive_mode = config->send_receive_mode;
+
+  terminal->new_line_mode = config->new_line_mode;
+  terminal->cursor_key_mode = config->cursor_key_mode;
+  terminal->keyboard_action_mode = false;
+  terminal->auto_repeat_mode = config->auto_repeat_mode;
+  terminal->ansi_mode = config->ansi_mode;
+  terminal->backspace_mode = config->backspace_mode;
 
   terminal_keyboard_init(terminal);
   terminal_screen_init(terminal);
@@ -25,6 +45,24 @@ void terminal_init(struct terminal *terminal,
 
   terminal->saved_vs = terminal->vs;
 
-  terminal_uart_receive_string(
-      terminal, PRODUCT_NAME PRODUCT_VERSION PRODUCT_COPYRIGHT "\r\n");
+  switch (config->start_up) {
+  case START_UP_NONE:
+    break;
+  case START_UP_MESSAGE:
+    terminal_uart_receive_string(
+        terminal, PRODUCT_NAME PRODUCT_VERSION PRODUCT_COPYRIGHT "\r\n");
+    break;
+  case START_UP_TEST_COLOR1:
+    terminal->callbacks->system_test(SYSTEM_TEST_COLOR1);
+    break;
+  case START_UP_TEST_COLOR2:
+    terminal->callbacks->system_test(SYSTEM_TEST_COLOR2);
+    break;
+  case START_UP_TEST_FONT1:
+    terminal->callbacks->system_test(SYSTEM_TEST_FONT1);
+    break;
+  case START_UP_TEST_FONT2:
+    terminal->callbacks->system_test(SYSTEM_TEST_FONT2);
+    break;
+  }
 }

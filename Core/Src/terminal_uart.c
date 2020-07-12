@@ -20,8 +20,20 @@ static int16_t get_esc_param(struct terminal *terminal, size_t index) {
   return atoi((const char *)terminal->esc_params[index]);
 }
 
+static const receive_table_t utf8_prefix_receive_table;
+static const receive_table_t ascii_receive_table;
+
+static bool default_receive_table(struct terminal *terminal) {
+  return (terminal->receive_table == &utf8_prefix_receive_table ||
+          terminal->receive_table == &ascii_receive_table);
+}
+
 static void clear_receive_table(struct terminal *terminal) {
-  terminal->receive_table = terminal->default_receive_table;
+  if (terminal->charset == CHARSET_UTF8)
+    terminal->receive_table = &utf8_prefix_receive_table;
+  else
+    terminal->receive_table = &ascii_receive_table;
+
   clear_esc_params(terminal);
 
 #ifdef DEBUG
@@ -37,13 +49,17 @@ static void clear_receive_table(struct terminal *terminal) {
 static const receive_table_t esc_receive_table;
 static const receive_table_t vt52_esc_receive_table;
 
-static void receive_esc(struct terminal *terminal, character_t character) {
-  if (terminal->receive_table != terminal->default_receive_table) {
+static void cancel_esc(struct terminal *terminal) {
+  if (!default_receive_table(terminal)) {
 #ifdef DEBUG
     terminal->unhandled = true;
 #endif
     clear_receive_table(terminal);
   }
+}
+
+static void receive_esc(struct terminal *terminal, character_t character) {
+  cancel_esc(terminal);
 
   if (terminal->ansi_mode)
     terminal->receive_table = &esc_receive_table;
@@ -58,12 +74,7 @@ static void receive_esc(struct terminal *terminal, character_t character) {
 }
 
 static void receive_sub(struct terminal *terminal, character_t character) {
-  if (terminal->receive_table != terminal->default_receive_table) {
-#ifdef DEBUG
-    terminal->unhandled = true;
-#endif
-    clear_receive_table(terminal);
-  }
+  cancel_esc(terminal);
 }
 
 static void receive_cr(struct terminal *terminal, character_t character) {
@@ -167,6 +178,12 @@ static void receive_space(struct terminal *terminal, character_t character) {
   terminal->receive_table = &esc_space_receive_table;
 }
 
+static const receive_table_t esc_percent_receive_table;
+
+static void receive_percent(struct terminal *terminal, character_t character) {
+  terminal->receive_table = &esc_percent_receive_table;
+}
+
 static void receive_s7c1t(struct terminal *terminal, character_t character) {
   terminal->c1_mode = C1_MODE_7BIT;
   clear_receive_table(terminal);
@@ -174,6 +191,18 @@ static void receive_s7c1t(struct terminal *terminal, character_t character) {
 
 static void receive_s8c1t(struct terminal *terminal, character_t character) {
   terminal->c1_mode = C1_MODE_8BIT;
+  clear_receive_table(terminal);
+}
+
+static void receive_charset_ascii(struct terminal *terminal,
+                                  character_t character) {
+  terminal->charset = CHARSET_ASCII;
+  clear_receive_table(terminal);
+}
+
+static void receive_charset_utf8(struct terminal *terminal,
+                                 character_t character) {
+  terminal->charset = CHARSET_UTF8;
   clear_receive_table(terminal);
 }
 
@@ -1089,6 +1118,11 @@ static codepoint_t transform_codepoint(struct terminal *terminal,
   return codepoint;
 }
 
+static void receive_ascii(struct terminal *terminal, character_t character) {
+  terminal_screen_put_codepoint(
+      terminal, transform_codepoint(terminal, (codepoint_t)character));
+}
+
 static const receive_table_t utf8_continuation_receive_table;
 
 static void receive_utf8_prefix(struct terminal *terminal,
@@ -1202,7 +1236,7 @@ void terminal_uart_receive_character(struct terminal *terminal,
 
 #ifdef DEBUG
   // Keep zero for the end of the string for printf
-  if (terminal->receive_table != terminal->default_receive_table &&
+  if (!default_receive_table(terminal) &&
       terminal->debug_buffer_length < DEBUG_BUFFER_LENGTH - 1) {
     if (character < 0x20 || (character >= 0x7f && character <= 0xa0))
       terminal->debug_buffer_length += snprintf(
@@ -1297,6 +1331,11 @@ void terminal_uart_receive_string(struct terminal *terminal,
       RECEIVE_HANDLER('\x9e', receive_8bit_pm),                                \
       RECEIVE_HANDLER('\x9f', receive_8bit_apc)
 
+static const receive_table_t ascii_receive_table = {
+    DEFAULT_RECEIVE_TABLE,
+    DEFAULT_RECEIVE_HANDLER(receive_ascii),
+};
+
 static const receive_table_t utf8_prefix_receive_table = {
     DEFAULT_RECEIVE_TABLE,
     DEFAULT_RECEIVE_HANDLER(receive_utf8_prefix),
@@ -1323,6 +1362,7 @@ static const receive_table_t esc_receive_table = {
     RECEIVE_HANDLER('>', receive_deckpnm),
     RECEIVE_HANDLER('_', receive_apc),
     RECEIVE_HANDLER('^', receive_pm),
+    RECEIVE_HANDLER('%', receive_percent),
     RECEIVE_HANDLER('c', receive_ris),
     RECEIVE_HANDLER('n', receive_ls2),
     RECEIVE_HANDLER('o', receive_ls3),
@@ -1445,6 +1485,13 @@ static const receive_table_t scs_receive_table = {
     DEFAULT_RECEIVE_HANDLER(receive_unexpected),
 };
 
+static const receive_table_t esc_percent_receive_table = {
+    DEFAULT_RECEIVE_TABLE,
+    RECEIVE_HANDLER('@', receive_charset_ascii),
+    RECEIVE_HANDLER('G', receive_charset_utf8),
+    DEFAULT_RECEIVE_HANDLER(receive_unexpected),
+};
+
 static const receive_table_t dcs_receive_table = {
     DEFAULT_RECEIVE_HANDLER(receive_dcs_data),
 };
@@ -1537,10 +1584,10 @@ void terminal_uart_xon_off(struct terminal *terminal, enum xon_off xon_off) {
 }
 
 void terminal_uart_init(struct terminal *terminal) {
-  terminal->send_receive_mode = true;
-
-  terminal->default_receive_table = &utf8_prefix_receive_table;
-  terminal->receive_table = terminal->default_receive_table;
+  if (terminal->charset == CHARSET_UTF8)
+    terminal->receive_table = &utf8_prefix_receive_table;
+  else
+    terminal->receive_table = &ascii_receive_table;
 
   clear_esc_params(terminal);
   clear_utf8_buffer(terminal);
@@ -1550,7 +1597,6 @@ void terminal_uart_init(struct terminal *terminal) {
   clear_control_data(&terminal->pm);
 
   terminal->gset_received = GSET_UNDEFINED;
-  terminal->c1_mode = C1_MODE_7BIT;
   terminal->xon_off = XON;
 
   terminal->vs.gset_gl = GSET_G0;
