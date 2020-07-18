@@ -5,6 +5,9 @@
 #define CHAR_XOFF '\x13'
 #define CHAR_XON '\x11'
 
+#define ROWS terminal->format.rows
+#define COLS terminal->format.cols
+
 void terminal_uart_init(struct terminal *terminal);
 
 void terminal_keyboard_init(struct terminal *terminal);

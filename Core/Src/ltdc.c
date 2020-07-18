@@ -54,17 +54,20 @@ static const struct bitmap_font bold_bitmap_font = {
 static uint8_t screen_buffer[CHAR_WIDTH * COLS * CHAR_HEIGHT * ROWS];
 
 static struct screen screen = {
+    .format =
+        {
+            .rows = ROWS,
+            .cols = COLS,
+        },
     .char_width = CHAR_WIDTH,
     .char_height = CHAR_HEIGHT,
-    .rows = ROWS,
-    .cols = COLS,
     .buffer = screen_buffer,
     .normal_bitmap_font = &normal_bitmap_font,
     .bold_bitmap_font = &bold_bitmap_font,
 };
 
-struct screen *ltdc_get_screen(size_t rows, size_t cols) {
-  if (rows != ROWS || cols != COLS)
+struct screen *ltdc_get_screen(struct format format) {
+  if (format.rows != screen.format.rows || format.cols != screen.format.cols)
     return NULL;
 
   return &screen;

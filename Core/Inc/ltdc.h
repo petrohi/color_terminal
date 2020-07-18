@@ -42,7 +42,7 @@ void MX_LTDC_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
-struct screen *ltdc_get_screen(size_t rows, size_t cols);
+struct screen *ltdc_get_screen(struct format format);
 
 /* USER CODE END Prototypes */
 

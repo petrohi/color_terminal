@@ -305,18 +305,21 @@ static const char *default_help[] = {
     "<F12> - Save and restart", NULL,
 };
 
+#define ROWS terminal_config_ui->terminal->format.rows
+#define COLS terminal_config_ui->terminal->format.cols
+
 #define TITLE_ROW 2
 #define MENU_ROW 4
 #define TOP_ROW 5
 #define MAIN_ROW 8
-#define BOTTOM_ROW terminal_config_ui->terminal->rows
+#define BOTTOM_ROW ROWS
 
 #define LEFT_COL 1
 #define OPTIONS_COL 4
 #define CHOICES_COL 35
 #define DIVIDER_COL 50
 #define HELP_COL 52
-#define RIGHT_COL terminal_config_ui->terminal->cols
+#define RIGHT_COL COLS
 
 static void clear_help(struct terminal_config_ui *terminal_config_ui) {
   const char **help =
@@ -326,7 +329,7 @@ static void clear_help(struct terminal_config_ui *terminal_config_ui) {
   while (*help) {
     move_cursor(terminal_config_ui, i + MAIN_ROW, HELP_COL);
     screen_printf(terminal_config_ui, "\x1b[%dX",
-                  terminal_config_ui->terminal->cols - HELP_COL);
+                  COLS - HELP_COL);
     help++;
     i++;
   }

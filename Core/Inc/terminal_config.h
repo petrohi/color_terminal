@@ -3,6 +3,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct format {
+  uint8_t rows;
+  uint8_t cols;
+};
+
 enum baud_rate {
   BAUD_RATE_110 = 0,
   BAUD_RATE_150 = 1,
@@ -56,8 +61,7 @@ enum start_up {
 };
 
 struct terminal_config {
-  uint8_t rows;
-  uint8_t cols;
+  struct format format;
 
   enum baud_rate baud_rate;
   enum word_length word_length;

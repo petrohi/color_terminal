@@ -91,7 +91,7 @@ static void receive_lf(struct terminal *terminal, character_t character) {
 static void receive_tab(struct terminal *terminal, character_t character) {
   int16_t col = get_terminal_screen_cursor_col(terminal);
 
-  while (col < terminal->cols - 1 && !terminal->tab_stops[++col])
+  while (col < COLS - 1 && !terminal->tab_stops[++col])
     ;
   terminal_screen_move_cursor_absolute(
       terminal, get_terminal_screen_cursor_row(terminal), col);
@@ -311,7 +311,7 @@ static void receive_tbc(struct terminal *terminal, character_t character) {
   if (mode == 0)
     terminal->tab_stops[get_terminal_screen_cursor_col(terminal)] = false;
   else if (mode == 3)
-    memset(terminal->tab_stops, 0, terminal->cols);
+    memset(terminal->tab_stops, 0, COLS);
 #ifdef DEBUG
   else
     terminal->unhandled = true;
@@ -772,9 +772,9 @@ static void receive_decstbm(struct terminal *terminal, character_t character) {
     top--;
 
   if (!bottom)
-    bottom = terminal->rows;
+    bottom = ROWS;
 
-  if (top >= 0 && bottom >= top && bottom <= terminal->rows) {
+  if (top >= 0 && bottom >= top && bottom <= ROWS) {
     terminal->margin_top = top;
     terminal->margin_bottom = bottom;
     terminal_screen_move_cursor_absolute(terminal, 0, 0);
@@ -803,8 +803,8 @@ static void receive_decreqtparm(struct terminal *terminal,
 }
 
 static void receive_decaln(struct terminal *terminal, character_t character) {
-  for (size_t row = 0; row < terminal->rows; ++row)
-    for (size_t col = 0; col < terminal->cols; ++col) {
+  for (size_t row = 0; row < ROWS; ++row)
+    for (size_t col = 0; col < COLS; ++col) {
       terminal_screen_move_cursor_absolute(terminal, row, col);
       terminal_screen_put_codepoint(terminal, (codepoint_t)'E');
     }

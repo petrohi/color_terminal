@@ -9,15 +9,15 @@
 #define BLINK_OFF_COUNTER 500
 
 #define CELL_SIZE sizeof(struct visual_cell)
-#define CELLS_ROW_SIZE CELL_SIZE * terminal->cols
-#define CELLS_SIZE CELLS_ROW_SIZE * terminal->rows
+#define CELLS_ROW_SIZE CELL_SIZE *COLS
+#define CELLS_SIZE CELLS_ROW_SIZE *ROWS
 
 static void clear_cells_rows(struct terminal *terminal, int16_t from_row,
                              int16_t to_row) {
   if (to_row <= from_row)
     return;
 
-  if (to_row > terminal->rows)
+  if (to_row > ROWS)
     return;
 
   for (int16_t row = from_row; row < to_row; ++row) {
@@ -28,13 +28,13 @@ static void clear_cells_rows(struct terminal *terminal, int16_t from_row,
 
 static void clear_cells_cols(struct terminal *terminal, int16_t row,
                              int16_t from_col, int16_t to_col) {
-  if (row >= terminal->rows)
+  if (row >= ROWS)
     return;
 
   if (to_col <= from_col)
     return;
 
-  if (to_col > terminal->cols)
+  if (to_col > COLS)
     return;
 
   memset((void *)terminal->cells + row * CELLS_ROW_SIZE + from_col * CELL_SIZE,
@@ -46,7 +46,7 @@ static void scroll_cells(struct terminal *terminal, enum scroll scroll,
   if (to_row <= from_row)
     return;
 
-  if (to_row > terminal->rows)
+  if (to_row > ROWS)
     return;
 
   if (to_row <= from_row + rows) {
@@ -73,17 +73,17 @@ static void scroll_cells(struct terminal *terminal, enum scroll scroll,
 
 static void shift_cells_right(struct terminal *terminal, int16_t row,
                               int16_t col, size_t cols) {
-  if (row >= terminal->rows)
+  if (row >= ROWS)
     return;
 
-  if (col >= terminal->cols)
+  if (col >= COLS)
     return;
 
-  if (col + cols > terminal->cols)
+  if (col + cols > COLS)
     return;
 
-  if (col + cols < terminal->cols) {
-    size_t size = CELL_SIZE * (terminal->cols - col - cols);
+  if (col + cols < COLS) {
+    size_t size = CELL_SIZE * (COLS - col - cols);
     size_t offset = CELLS_ROW_SIZE * row + CELL_SIZE * col;
     size_t disp = CELL_SIZE * cols;
 
@@ -96,17 +96,17 @@ static void shift_cells_right(struct terminal *terminal, int16_t row,
 
 static void shift_cells_left(struct terminal *terminal, int16_t row,
                              int16_t col, size_t cols) {
-  if (row >= terminal->rows)
+  if (row >= ROWS)
     return;
 
-  if (col >= terminal->cols)
+  if (col >= COLS)
     return;
 
-  if (col + cols > terminal->cols)
+  if (col + cols > COLS)
     return;
 
-  if (col + cols < terminal->cols) {
-    size_t size = CELL_SIZE * (terminal->cols - col - cols);
+  if (col + cols < COLS) {
+    size_t size = CELL_SIZE * (COLS - col - cols);
     size_t offset = CELLS_ROW_SIZE * row + CELL_SIZE * col;
     size_t disp = CELL_SIZE * cols;
 
@@ -114,12 +114,12 @@ static void shift_cells_left(struct terminal *terminal, int16_t row,
            (void *)terminal->cells + offset + disp, size);
   }
 
-  clear_cells_cols(terminal, row, terminal->cols - cols, terminal->cols);
+  clear_cells_cols(terminal, row, COLS - cols, COLS);
 }
 
 struct visual_cell *get_cell(struct terminal *terminal, int16_t row,
                              int16_t col) {
-  return &terminal->cells[row * terminal->cols + col];
+  return &terminal->cells[row * COLS + col];
 }
 
 static void swap_colors(color_t *color1, color_t *color2) {
@@ -149,8 +149,8 @@ static void render_character(struct terminal *terminal, int16_t row,
   }
 
   terminal->callbacks->screen_draw_codepoint(
-      terminal->rows, terminal->cols, row, col, cell->c, cell->p.font,
-      cell->p.italic, cell->p.underlined, cell->p.crossedout, active, inactive);
+      terminal->format, row, col, cell->c, cell->p.font, cell->p.italic,
+      cell->p.underlined, cell->p.crossedout, active, inactive);
 }
 
 static void draw_cursor(struct terminal *terminal) {
@@ -185,8 +185,8 @@ static void update_cursor(struct terminal *terminal) {
 
 static void draw_blink(struct terminal *terminal, bool blink) {
   if (terminal->blink_drawn != blink) {
-    for (int16_t row = 0; row < terminal->rows; ++row)
-      for (int16_t col = 0; col < terminal->cols; ++col)
+    for (int16_t row = 0; row < ROWS; ++row)
+      for (int16_t col = 0; col < COLS; ++col)
         if (get_cell(terminal, row, col)->p.blink)
           render_character(terminal, row, col,
                            terminal->cursor_drawn &&
@@ -221,8 +221,8 @@ static void draw_codepoint(struct terminal *terminal, codepoint_t codepoint) {
 }
 
 static void draw_screen(struct terminal *terminal) {
-  for (int16_t row = 0; row < terminal->rows; ++row)
-    for (int16_t col = 0; col < terminal->cols; ++col) {
+  for (int16_t row = 0; row < ROWS; ++row)
+    for (int16_t col = 0; col < COLS; ++col) {
       struct visual_cell *cell = get_cell(terminal, row, col);
       render_character(terminal, row, col,
                        terminal->cursor_drawn &&
@@ -239,8 +239,7 @@ static color_t inactive_color(struct terminal *terminal) {
 
 static void clear_rows(struct terminal *terminal, int16_t from_row,
                        int16_t to_row) {
-  terminal->callbacks->screen_clear_rows(terminal->rows, terminal->cols,
-                                         from_row, to_row,
+  terminal->callbacks->screen_clear_rows(terminal->format, from_row, to_row,
                                          inactive_color(terminal));
 
   clear_cells_rows(terminal, from_row, to_row);
@@ -248,9 +247,8 @@ static void clear_rows(struct terminal *terminal, int16_t from_row,
 
 static void clear_cols(struct terminal *terminal, int16_t row, int16_t from_col,
                        int16_t to_col) {
-  terminal->callbacks->screen_clear_cols(terminal->rows, terminal->cols, row,
-                                         from_col, to_col,
-                                         inactive_color(terminal));
+  terminal->callbacks->screen_clear_cols(terminal->format, row, from_col,
+                                         to_col, inactive_color(terminal));
 
   clear_cells_cols(terminal, row, from_col, to_col);
 }
@@ -258,8 +256,8 @@ static void clear_cols(struct terminal *terminal, int16_t row, int16_t from_col,
 static void screen_scroll(struct terminal *terminal, enum scroll scroll,
                           int16_t from_row, int16_t rows) {
   if (from_row < terminal->margin_bottom) {
-    terminal->callbacks->screen_scroll(terminal->rows, terminal->cols, scroll,
-                                       from_row, terminal->margin_bottom, rows,
+    terminal->callbacks->screen_scroll(terminal->format, scroll, from_row,
+                                       terminal->margin_bottom, rows,
                                        inactive_color(terminal));
 
     scroll_cells(terminal, scroll, from_row, terminal->margin_bottom, rows);
@@ -287,15 +285,15 @@ void terminal_screen_move_cursor_absolute(struct terminal *terminal,
     if (row < 0)
       row = 0;
 
-    if (row >= terminal->rows)
-      row = terminal->rows - 1;
+    if (row >= ROWS)
+      row = ROWS - 1;
   }
 
   if (col < 0)
     col = 0;
 
-  if (col >= terminal->cols)
-    col = terminal->cols - 1;
+  if (col >= COLS)
+    col = COLS - 1;
 
   terminal->vs.cursor_row = row;
   terminal->vs.cursor_col = col;
@@ -330,15 +328,15 @@ void terminal_screen_move_cursor(struct terminal *terminal, int16_t rows,
     if (row < 0)
       row = 0;
 
-    if (row >= terminal->rows)
-      row = terminal->rows - 1;
+    if (row >= ROWS)
+      row = ROWS - 1;
   }
 
   if (col < 0)
     col = 0;
 
-  if (col >= terminal->cols)
-    col = terminal->cols - 1;
+  if (col >= COLS)
+    col = COLS - 1;
 
   terminal->vs.cursor_row = row;
   terminal->vs.cursor_col = col;
@@ -375,8 +373,7 @@ void terminal_screen_clear_to_right(struct terminal *terminal) {
   clear_blink(terminal);
   clear_cursor(terminal);
 
-  clear_cols(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
-             terminal->cols);
+  clear_cols(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col, COLS);
 
   update_cursor(terminal);
   update_blink(terminal);
@@ -406,7 +403,7 @@ void terminal_screen_clear_row(struct terminal *terminal) {
   clear_blink(terminal);
   clear_cursor(terminal);
 
-  clear_cols(terminal, terminal->vs.cursor_row, 0, terminal->cols);
+  clear_cols(terminal, terminal->vs.cursor_row, 0, COLS);
 
   update_cursor(terminal);
   update_blink(terminal);
@@ -416,7 +413,7 @@ void terminal_screen_clear_to_bottom(struct terminal *terminal) {
   clear_blink(terminal);
   clear_cursor(terminal);
 
-  clear_rows(terminal, terminal->vs.cursor_row + 1, terminal->rows);
+  clear_rows(terminal, terminal->vs.cursor_row + 1, ROWS);
 
   update_cursor(terminal);
   update_blink(terminal);
@@ -426,7 +423,7 @@ void terminal_screen_clear_all(struct terminal *terminal) {
   clear_blink(terminal);
   clear_cursor(terminal);
 
-  clear_rows(terminal, 0, terminal->rows);
+  clear_rows(terminal, 0, ROWS);
 
   update_cursor(terminal);
   update_blink(terminal);
@@ -488,7 +485,7 @@ void terminal_screen_put_codepoint(struct terminal *terminal,
 
   draw_codepoint(terminal, codepoint);
 
-  if (terminal->vs.cursor_col == terminal->cols - 1) {
+  if (terminal->vs.cursor_col == COLS - 1) {
     if (terminal->auto_wrap_mode)
       terminal->vs.cursor_last_col = true;
   } else
@@ -502,8 +499,8 @@ void terminal_screen_insert(struct terminal *terminal, size_t cols) {
   clear_blink(terminal);
 
   terminal->callbacks->screen_shift_right(
-      terminal->rows, terminal->cols, terminal->vs.cursor_row,
-      terminal->vs.cursor_col, cols, inactive_color(terminal));
+      terminal->format, terminal->vs.cursor_row, terminal->vs.cursor_col, cols,
+      inactive_color(terminal));
 
   shift_cells_right(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
                     cols);
@@ -517,8 +514,8 @@ void terminal_screen_delete(struct terminal *terminal, size_t cols) {
   clear_blink(terminal);
 
   terminal->callbacks->screen_shift_left(
-      terminal->rows, terminal->cols, terminal->vs.cursor_row,
-      terminal->vs.cursor_col, cols, inactive_color(terminal));
+      terminal->format, terminal->vs.cursor_row, terminal->vs.cursor_col, cols,
+      inactive_color(terminal));
 
   shift_cells_left(terminal, terminal->vs.cursor_row, terminal->vs.cursor_col,
                    cols);
@@ -632,9 +629,9 @@ void terminal_screen_init(struct terminal *terminal) {
   terminal->vs.p.inactive_color = DEFAULT_INACTIVE_COLOR;
 
   terminal->margin_top = 0;
-  terminal->margin_bottom = terminal->rows;
+  terminal->margin_bottom = ROWS;
 
-  for (size_t i = 0; i < terminal->cols; ++i)
+  for (size_t i = 0; i < COLS; ++i)
     terminal->tab_stops[i] = ((i + 1) % 8) == 0;
 
   terminal->cursor_counter = CURSOR_ON_COUNTER;

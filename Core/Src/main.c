@@ -160,8 +160,10 @@ static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
 
 __attribute__((
     __section__(".flash_data"))) struct terminal_config terminal_config = {
-    .cols = 80,
-    .rows = 24,
+    .format = {
+      .cols = 80,
+      .rows = 24,
+    },
 
     .baud_rate = BAUD_RATE_115200,
     .word_length = WORD_LENGTH_8B,
@@ -198,64 +200,61 @@ static void uart_transmit(character_t *characters, size_t size) {
   }
 }
 
-static void screen_draw_codepoint_callback(size_t rows, size_t cols, size_t row,
+static void screen_draw_codepoint_callback(struct format format, size_t row,
                                            size_t col, codepoint_t codepoint,
                                            enum font font, bool italic,
                                            bool underlined, bool crossedout,
                                            color_t active, color_t inactive) {
-  screen_draw_codepoint(ltdc_get_screen(rows, cols), row, col, codepoint, font,
+  screen_draw_codepoint(ltdc_get_screen(format), row, col, codepoint, font,
                         italic, underlined, crossedout, active, inactive);
 }
 
-static void screen_clear_rows_callback(size_t rows, size_t cols,
-                                       size_t from_row, size_t to_row,
-                                       color_t inactive) {
-  screen_clear_rows(ltdc_get_screen(rows, cols), from_row, to_row, inactive);
+static void screen_clear_rows_callback(struct format format, size_t from_row,
+                                       size_t to_row, color_t inactive) {
+  screen_clear_rows(ltdc_get_screen(format), from_row, to_row, inactive);
 }
 
-static void screen_clear_cols_callback(size_t rows, size_t cols, size_t row,
+static void screen_clear_cols_callback(struct format format, size_t row,
                                        size_t from_col, size_t to_col,
                                        color_t inactive) {
-  screen_clear_cols(ltdc_get_screen(rows, cols), row, from_col, to_col,
-                    inactive);
+  screen_clear_cols(ltdc_get_screen(format), row, from_col, to_col, inactive);
 }
 
-static void screen_scroll_callback(size_t rows, size_t cols, enum scroll scroll,
-                                   size_t from_row, size_t to_row,
-                                   size_t scroll_rows, color_t inactive) {
-  screen_scroll(ltdc_get_screen(rows, cols), scroll, from_row, to_row,
-                scroll_rows, inactive);
+static void screen_scroll_callback(struct format format, enum scroll scroll,
+                                   size_t from_row, size_t to_row, size_t rows,
+                                   color_t inactive) {
+  screen_scroll(ltdc_get_screen(format), scroll, from_row, to_row, rows,
+                inactive);
 }
 
-static void screen_shift_right_callback(size_t rows, size_t cols, size_t row,
-                                        size_t col, size_t shift_cols,
+static void screen_shift_right_callback(struct format format, size_t row,
+                                        size_t col, size_t cols,
                                         color_t inactive) {
-  screen_shift_right(ltdc_get_screen(rows, cols), row, col, shift_cols,
-                     inactive);
+  screen_shift_right(ltdc_get_screen(format), row, col, cols, inactive);
 }
 
-static void screen_shift_left_callback(size_t rows, size_t cols, size_t row,
-                                       size_t col, size_t shift_cols,
+static void screen_shift_left_callback(struct format format, size_t row,
+                                       size_t col, size_t cols,
                                        color_t inactive) {
-  screen_shift_left(ltdc_get_screen(rows, cols), row, col, shift_cols,
-                    inactive);
+  screen_shift_left(ltdc_get_screen(format), row, col, cols, inactive);
 }
 
-static void screen_test_callback(size_t rows, size_t cols,
+static void screen_test_callback(struct format format,
                                  enum screen_test screen_test) {
+  struct screen *screen = ltdc_get_screen(format);
   switch (screen_test) {
   case SCREEN_TEST_FONT1:
-    screen_test_fonts(ltdc_get_screen(rows, cols), FONT_NORMAL);
+    screen_test_fonts(screen, FONT_NORMAL);
     break;
   case SCREEN_TEST_FONT2:
-    screen_test_fonts(ltdc_get_screen(rows, cols), FONT_BOLD);
+    screen_test_fonts(screen, FONT_BOLD);
     break;
   case SCREEN_TEST_COLOR1:
-    screen_test_colors(ltdc_get_screen(rows, cols));
+    screen_test_colors(screen);
     break;
   case SCREEN_TEST_COLOR2:
-    screen_test_mandelbrot(ltdc_get_screen(rows, cols), MANDELBROT_X,
-                           MANDELBROT_Y, MANDELBROT_R, NULL);
+    screen_test_mandelbrot(screen, MANDELBROT_X, MANDELBROT_Y, MANDELBROT_R,
+                           NULL);
     break;
   }
 }

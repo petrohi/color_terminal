@@ -9,10 +9,9 @@
 #include "font.h"
 
 struct screen {
+  const struct format format;
   const uint8_t char_width;
   const uint8_t char_height;
-  const uint8_t cols;
-  const uint8_t rows;
   const struct bitmap_font *normal_bitmap_font;
   const struct bitmap_font *bold_bitmap_font;
   uint8_t* buffer;

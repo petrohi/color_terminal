@@ -41,23 +41,22 @@ enum screen_test {
 struct terminal_callbacks {
   void (*keyboard_set_leds)(struct lock_state state);
   void (*uart_transmit)(character_t *characters, size_t size);
-  void (*screen_draw_codepoint)(size_t rows, size_t cols, size_t row,
-                                size_t col, codepoint_t codepoint,
-                                enum font font, bool italic, bool underlined,
-                                bool crossedout, color_t active,
-                                color_t inactive);
-  void (*screen_clear_rows)(size_t rows, size_t cols, size_t from_row,
+  void (*screen_draw_codepoint)(struct format format, size_t row, size_t col,
+                                codepoint_t codepoint, enum font font,
+                                bool italic, bool underlined, bool crossedout,
+                                color_t active, color_t inactive);
+  void (*screen_clear_rows)(struct format format, size_t from_row,
                             size_t to_row, color_t inactive);
-  void (*screen_clear_cols)(size_t rows, size_t cols, size_t row,
-                            size_t from_col, size_t to_col, color_t inactive);
-  void (*screen_scroll)(size_t rows, size_t cols, enum scroll scroll,
-                        size_t from_row, size_t to_row, size_t scroll_rows,
+  void (*screen_clear_cols)(struct format format, size_t row, size_t from_col,
+                            size_t to_col, color_t inactive);
+  void (*screen_scroll)(struct format format, enum scroll scroll,
+                        size_t from_row, size_t to_row, size_t rows,
                         color_t inactive);
-  void (*screen_shift_right)(size_t rows, size_t cols, size_t row, size_t col,
-                             size_t shift_cols, color_t inactive);
-  void (*screen_shift_left)(size_t rows, size_t cols, size_t row, size_t col,
-                            size_t shift_cols, color_t inactive);
-  void (*screen_test)(size_t rows, size_t cols, enum screen_test screen_test);
+  void (*screen_shift_right)(struct format format, size_t row, size_t col,
+                             size_t cols, color_t inactive);
+  void (*screen_shift_left)(struct format format, size_t row, size_t col,
+                            size_t cols, color_t inactive);
+  void (*screen_test)(struct format format, enum screen_test screen_test);
   void (*system_reset)();
   void (*system_write_config)(struct terminal_config *terminal_config_copy);
 };
@@ -128,8 +127,7 @@ struct control_data {
 struct terminal {
   const struct terminal_callbacks *callbacks;
 
-  uint8_t rows;
-  uint8_t cols;
+  struct format format;
 
   uint8_t pressed_key_code;
   volatile uint16_t repeat_counter;
