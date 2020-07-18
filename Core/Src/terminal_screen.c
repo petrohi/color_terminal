@@ -1,6 +1,6 @@
 #include "terminal_internal.h"
 
-#include <memory.h>
+#include <string.h>
 
 #define CURSOR_ON_COUNTER 650
 #define CURSOR_OFF_COUNTER 350

@@ -1,7 +1,9 @@
 #include "screen.h"
 
+#ifdef TERMINAL_MANDELBROT
 #include <complex.h>
-#include <memory.h>
+#endif
+#include <string.h>
 
 #define REPLACEMENT_CODEPOINT 0xfffd
 
@@ -185,6 +187,7 @@ void screen_test_fonts(struct screen *screen, enum font font) {
   }
 }
 
+#ifdef TERMINAL_MANDELBROT
 #define MANDELBROT_ITERATIONS 200
 
 static float mandelbrot(float complex z) {
@@ -231,6 +234,7 @@ void screen_test_mandelbrot(struct screen *screen, float window_x,
     }
   }
 }
+#endif
 
 #define COLOR_TEST_BASE_COLORS 16
 

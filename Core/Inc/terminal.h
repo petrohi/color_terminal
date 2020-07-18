@@ -25,7 +25,7 @@ typedef uint16_t codepoint_t;
 
 #define DEFAULT_ACTIVE_COLOR 0xf
 #define DEFAULT_INACTIVE_COLOR 0
-#define CHARACTER_MAX UINT8_MAX
+#define CHARACTER_MAX 0xff
 #define CHARACTER_DECODER_TABLE_LENGTH CHARACTER_MAX + 1
 
 #define MAX_COLS 80

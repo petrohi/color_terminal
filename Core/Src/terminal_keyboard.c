@@ -1,6 +1,16 @@
 #include "terminal_internal.h"
 
+#ifdef TERMINAL_USB_KEYBOARD
 #include "usbh_hid_keybd.h"
+#else
+#define KEY_NONE 0
+#define KEY_ESCAPE 1
+#define KEY_TAB 2
+#define KEY_RETURN 3
+#define KEY_CAPS_LOCK 4
+#define KEY_KEYPAD_NUM_LOCK_AND_CLEAR 5
+#define KEY_SCROLL_LOCK 6
+#endif
 
 #define FIRST_REPEAT_COUNTER 500
 #define NEXT_REPEAT_COUNTER 33
@@ -120,7 +130,7 @@ static void handle_ctrl_q(struct terminal *terminal) {
       .router = &(const struct keys_router) {                                  \
         r, (const struct keys_entry[]) { __VA_ARGS__ }                         \
       }                                                                        \
-   }                                                                          \
+    }                                                                          \
   }
 
 static const struct keys_entry *entries = (struct keys_entry[]){

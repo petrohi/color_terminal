@@ -1,8 +1,8 @@
 #include "terminal_internal.h"
 
-#include <memory.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #define PRINTF_BUFFER_SIZE 64
 
@@ -131,12 +131,16 @@ static void receive_ri(struct terminal *terminal, character_t character) {
 }
 
 static void receive_ss2(struct terminal *terminal, character_t character) {
+#ifdef DEBUG
   terminal->unhandled = true;
+#endif
   clear_receive_table(terminal);
 }
 
 static void receive_ss3(struct terminal *terminal, character_t character) {
+#ifdef DEBUG
   terminal->unhandled = true;
+#endif
   clear_receive_table(terminal);
 }
 
@@ -952,13 +956,13 @@ static bool receive_control_data(struct control_data *control_data,
 
   control_data->data[control_data->length++] = character;
 
-  if (control_data->data[control_data->length - 1] == '\x07')
+  if (control_data->data[control_data->length - 1] == 0x07)
     return true;
 
-  if (control_data->data[control_data->length - 1] == '\x9c')
+  if (control_data->data[control_data->length - 1] == 0x9c)
     return true;
 
-  if (control_data->data[control_data->length - 2] == '\x1b' &&
+  if (control_data->data[control_data->length - 2] == 0x1b &&
       control_data->data[control_data->length - 1] == '\\')
     return true;
 
@@ -1164,7 +1168,7 @@ static void receive_utf8_continuation(struct terminal *terminal,
 
 static void receive_8bit_control(struct terminal *terminal,
                                  character_t character) {
-  receive_esc(terminal, '\x1b');
+  receive_esc(terminal, 0x1b);
   terminal_uart_receive_character(terminal, character);
 }
 
@@ -1265,71 +1269,66 @@ void terminal_uart_receive_string(struct terminal *terminal,
 #define DEFAULT_RECEIVE_HANDLER(h) [DEFAULT_RECEIVE] = h
 
 #define DEFAULT_RECEIVE_TABLE                                                  \
-  RECEIVE_HANDLER('\x00', receive_ignore),                                     \
-      RECEIVE_HANDLER('\x01', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x02', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x03', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x04', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x05', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x06', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x07', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x08', receive_bs),                                     \
-      RECEIVE_HANDLER('\x09', receive_tab),                                    \
-      RECEIVE_HANDLER('\x0a', receive_lf),                                     \
-      RECEIVE_HANDLER('\x0b', receive_lf),                                     \
-      RECEIVE_HANDLER('\x0c', receive_lf),                                     \
-      RECEIVE_HANDLER('\x0d', receive_cr),                                     \
-      RECEIVE_HANDLER('\x0e', receive_so),                                     \
-      RECEIVE_HANDLER('\x0f', receive_si),                                     \
-      RECEIVE_HANDLER('\x10', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x11', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x12', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x13', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x14', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x15', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x16', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x17', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x18', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x19', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x1a', receive_sub),                                    \
-      RECEIVE_HANDLER('\x1b', receive_esc),                                    \
-      RECEIVE_HANDLER('\x1c', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x1d', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x1e', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x1f', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x7f', receive_bs),                                     \
-      RECEIVE_HANDLER('\x80', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x81', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x82', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x83', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x84', receive_8bit_ind),                               \
-      RECEIVE_HANDLER('\x85', receive_8bit_nel),                               \
-      RECEIVE_HANDLER('\x86', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x87', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x88', receive_8bit_hts),                               \
-      RECEIVE_HANDLER('\x89', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x8a', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x8b', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x8c', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x8d', receive_8bit_ri),                                \
-      RECEIVE_HANDLER('\x8e', receive_8bit_ss2),                               \
-      RECEIVE_HANDLER('\x8f', receive_8bit_ss3),                               \
-      RECEIVE_HANDLER('\x90', receive_8bit_dcs),                               \
-      RECEIVE_HANDLER('\x91', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x92', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x93', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x94', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x95', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x96', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x97', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x98', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x99', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x9a', receive_8bit_da),                                \
-      RECEIVE_HANDLER('\x9b', receive_8bit_csi),                               \
-      RECEIVE_HANDLER('\x9c', receive_ignore),                                 \
-      RECEIVE_HANDLER('\x9d', receive_8bit_osc),                               \
-      RECEIVE_HANDLER('\x9e', receive_8bit_pm),                                \
-      RECEIVE_HANDLER('\x9f', receive_8bit_apc)
+  RECEIVE_HANDLER(0x00, receive_ignore),                                       \
+      RECEIVE_HANDLER(0x01, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x02, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x03, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x04, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x05, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x06, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x07, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x08, receive_bs), RECEIVE_HANDLER(0x09, receive_tab),   \
+      RECEIVE_HANDLER(0x0a, receive_lf), RECEIVE_HANDLER(0x0b, receive_lf),    \
+      RECEIVE_HANDLER(0x0c, receive_lf), RECEIVE_HANDLER(0x0d, receive_cr),    \
+      RECEIVE_HANDLER(0x0e, receive_so), RECEIVE_HANDLER(0x0f, receive_si),    \
+      RECEIVE_HANDLER(0x10, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x11, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x12, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x13, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x14, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x15, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x16, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x17, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x18, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x19, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x1a, receive_sub), RECEIVE_HANDLER(0x1b, receive_esc),  \
+      RECEIVE_HANDLER(0x1c, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x1d, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x1e, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x1f, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x7f, receive_bs),                                       \
+      RECEIVE_HANDLER(0x80, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x81, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x82, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x83, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x84, receive_8bit_ind),                                 \
+      RECEIVE_HANDLER(0x85, receive_8bit_nel),                                 \
+      RECEIVE_HANDLER(0x86, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x87, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x88, receive_8bit_hts),                                 \
+      RECEIVE_HANDLER(0x89, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x8a, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x8b, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x8c, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x8d, receive_8bit_ri),                                  \
+      RECEIVE_HANDLER(0x8e, receive_8bit_ss2),                                 \
+      RECEIVE_HANDLER(0x8f, receive_8bit_ss3),                                 \
+      RECEIVE_HANDLER(0x90, receive_8bit_dcs),                                 \
+      RECEIVE_HANDLER(0x91, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x92, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x93, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x94, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x95, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x96, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x97, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x98, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x99, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x9a, receive_8bit_da),                                  \
+      RECEIVE_HANDLER(0x9b, receive_8bit_csi),                                 \
+      RECEIVE_HANDLER(0x9c, receive_ignore),                                   \
+      RECEIVE_HANDLER(0x9d, receive_8bit_osc),                                 \
+      RECEIVE_HANDLER(0x9e, receive_8bit_pm),                                  \
+      RECEIVE_HANDLER(0x9f, receive_8bit_apc)
 
 static const receive_table_t ascii_receive_table = {
     DEFAULT_RECEIVE_TABLE,
@@ -1535,7 +1534,7 @@ void terminal_uart_transmit_string(struct terminal *terminal,
       len = 0;
     }
 
-    if (terminal->c1_mode == C1_MODE_8BIT && *string == '\x1b') {
+    if (terminal->c1_mode == C1_MODE_8BIT && *string == 0x1b) {
       const char *next = string + 1;
       character_t eight_bit_character =
           eight_bit_character_table[(size_t)*next];
