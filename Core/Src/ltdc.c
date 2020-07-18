@@ -63,7 +63,12 @@ static struct screen screen = {
     .bold_bitmap_font = &bold_bitmap_font,
 };
 
-struct screen *ltdc_get_screen() { return &screen; }
+struct screen *ltdc_get_screen(size_t rows, size_t cols) {
+  if (rows != ROWS || cols != COLS)
+    return NULL;
+
+  return &screen;
+}
 
 typedef uint32_t clut_entry;
 

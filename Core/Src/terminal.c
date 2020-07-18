@@ -17,6 +17,15 @@ void terminal_init(struct terminal *terminal,
                    character_t *transmit_buffer, size_t transmit_buffer_size) {
   terminal->callbacks = callbacks;
 
+  terminal->rows = config->rows;
+  terminal->cols = config->cols;
+
+  if (terminal->rows > MAX_ROWS)
+    terminal->rows = MAX_ROWS;
+
+  if (terminal->cols > MAX_COLS)
+    terminal->cols = MAX_COLS;
+
   terminal->transmit_buffer = transmit_buffer;
   terminal->transmit_buffer_size = transmit_buffer_size;
 
@@ -53,16 +62,20 @@ void terminal_init(struct terminal *terminal,
         terminal, PRODUCT_NAME PRODUCT_VERSION PRODUCT_COPYRIGHT "\r\n");
     break;
   case START_UP_TEST_COLOR1:
-    terminal->callbacks->system_test(SYSTEM_TEST_COLOR1);
+    terminal->callbacks->screen_test(terminal->rows, terminal->cols,
+                                     SCREEN_TEST_COLOR1);
     break;
   case START_UP_TEST_COLOR2:
-    terminal->callbacks->system_test(SYSTEM_TEST_COLOR2);
+    terminal->callbacks->screen_test(terminal->rows, terminal->cols,
+                                     SCREEN_TEST_COLOR2);
     break;
   case START_UP_TEST_FONT1:
-    terminal->callbacks->system_test(SYSTEM_TEST_FONT1);
+    terminal->callbacks->screen_test(terminal->rows, terminal->cols,
+                                     SCREEN_TEST_FONT1);
     break;
   case START_UP_TEST_FONT2:
-    terminal->callbacks->system_test(SYSTEM_TEST_FONT2);
+    terminal->callbacks->screen_test(terminal->rows, terminal->cols,
+                                     SCREEN_TEST_FONT2);
     break;
   }
 }

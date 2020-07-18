@@ -28,34 +28,37 @@ typedef uint16_t codepoint_t;
 #define CHARACTER_MAX UINT8_MAX
 #define CHARACTER_DECODER_TABLE_LENGTH CHARACTER_MAX + 1
 
-#define COLS 80
-#define ROWS 24
+#define MAX_COLS 80
+#define MAX_ROWS 24
 
-enum system_test {
-  SYSTEM_TEST_FONT1,
-  SYSTEM_TEST_FONT2,
-  SYSTEM_TEST_COLOR1,
-  SYSTEM_TEST_COLOR2,
+enum screen_test {
+  SCREEN_TEST_FONT1,
+  SCREEN_TEST_FONT2,
+  SCREEN_TEST_COLOR1,
+  SCREEN_TEST_COLOR2,
 };
 
 struct terminal_callbacks {
   void (*keyboard_set_leds)(struct lock_state state);
   void (*uart_transmit)(character_t *characters, size_t size);
-  void (*screen_draw_codepoint)(size_t row, size_t col, codepoint_t codepoint,
+  void (*screen_draw_codepoint)(size_t rows, size_t cols, size_t row,
+                                size_t col, codepoint_t codepoint,
                                 enum font font, bool italic, bool underlined,
                                 bool crossedout, color_t active,
                                 color_t inactive);
-  void (*screen_clear_rows)(size_t from_row, size_t to_row, color_t inactive);
-  void (*screen_clear_cols)(size_t row, size_t from_col, size_t to_col,
-                            color_t inactive);
-  void (*screen_scroll)(enum scroll scroll, size_t from_row, size_t to_row,
-                        size_t rows, color_t inactive);
-  void (*screen_shift_right)(size_t row, size_t col, size_t cols,
-                             color_t inactive);
-  void (*screen_shift_left)(size_t row, size_t col, size_t cols,
-                            color_t inactive);
+  void (*screen_clear_rows)(size_t rows, size_t cols, size_t from_row,
+                            size_t to_row, color_t inactive);
+  void (*screen_clear_cols)(size_t rows, size_t cols, size_t row,
+                            size_t from_col, size_t to_col, color_t inactive);
+  void (*screen_scroll)(size_t rows, size_t cols, enum scroll scroll,
+                        size_t from_row, size_t to_row, size_t scroll_rows,
+                        color_t inactive);
+  void (*screen_shift_right)(size_t rows, size_t cols, size_t row, size_t col,
+                             size_t shift_cols, color_t inactive);
+  void (*screen_shift_left)(size_t rows, size_t cols, size_t row, size_t col,
+                            size_t shift_cols, color_t inactive);
+  void (*screen_test)(size_t rows, size_t cols, enum screen_test screen_test);
   void (*system_reset)();
-  void (*system_test)(enum system_test systetm_test);
   void (*system_write_config)(struct terminal_config *terminal_config_copy);
 };
 
@@ -125,6 +128,9 @@ struct control_data {
 struct terminal {
   const struct terminal_callbacks *callbacks;
 
+  uint8_t rows;
+  uint8_t cols;
+
   uint8_t pressed_key_code;
   volatile uint16_t repeat_counter;
   volatile bool repeat_pressed_key;
@@ -160,7 +166,7 @@ struct terminal {
   int16_t margin_top;
   int16_t margin_bottom;
 
-  bool tab_stops[COLS];
+  bool tab_stops[MAX_COLS];
 
   volatile uint16_t cursor_counter;
   volatile bool cursor_on;
@@ -170,7 +176,7 @@ struct terminal {
   volatile bool blink_on;
   bool blink_drawn;
 
-  struct visual_cell cells[ROWS * COLS];
+  struct visual_cell cells[MAX_ROWS * MAX_COLS];
 
   const receive_table_t *receive_table;
 

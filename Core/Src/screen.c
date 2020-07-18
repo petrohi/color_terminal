@@ -243,6 +243,7 @@ void screen_test_mandelbrot(struct screen *screen, float window_x,
 }
 
 #define COLOR_TEST_BASE_COLORS 16
+
 #define COLOR_TEST_CUBE_SIZE 6
 #define COLOR_TEST_GRAYSCALE 24
 

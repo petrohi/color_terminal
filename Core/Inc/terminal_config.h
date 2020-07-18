@@ -56,6 +56,9 @@ enum start_up {
 };
 
 struct terminal_config {
+  uint8_t rows;
+  uint8_t cols;
+
   enum baud_rate baud_rate;
   enum word_length word_length;
   enum stop_bits stop_bits;
