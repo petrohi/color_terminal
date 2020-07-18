@@ -6,15 +6,16 @@
 #include <stdint.h>
 
 #include "terminal.h"
-
-#define CHAR_WIDTH 7
-#define CHAR_HEIGHT 14
-
-#define SCREEN_WIDTH (COLS * CHAR_WIDTH)
-#define SCREEN_HEIGHT (ROWS * CHAR_HEIGHT)
+#include "font.h"
 
 struct screen {
-  color_t buffer[SCREEN_WIDTH * SCREEN_HEIGHT];
+  const uint8_t char_width;
+  const uint8_t char_height;
+  const uint8_t cols;
+  const uint8_t rows;
+  const struct bitmap_font *normal_bitmap_font;
+  const struct bitmap_font *bold_bitmap_font;
+  uint8_t* buffer;
 };
 
 void screen_clear_rows(struct screen *screen, size_t from_row, size_t to_row,

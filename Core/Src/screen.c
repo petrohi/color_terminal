@@ -1,62 +1,73 @@
 #include "screen.h"
 
-#include "font.h"
 #include <complex.h>
 #include <memory.h>
 
 #define REPLACEMENT_CODEPOINT 0xfffd
+
+static size_t get_screen_width(struct screen *screen) {
+  return screen->cols * screen->char_width;
+}
+
+static size_t get_screen_height(struct screen *screen) {
+  return screen->rows * screen->char_height;
+}
 
 void screen_clear_rows(struct screen *screen, size_t from_row, size_t to_row,
                        color_t inactive) {
   if (to_row <= from_row)
     return;
 
-  if (to_row > ROWS)
+  if (to_row > screen->rows)
     return;
 
-  size_t size = SCREEN_WIDTH * CHAR_HEIGHT * (to_row - from_row);
-  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * from_row;
+  size_t size =
+      get_screen_width(screen) * screen->char_height * (to_row - from_row);
+  size_t offset = get_screen_width(screen) * screen->char_height * from_row;
 
   memset(screen->buffer + offset, inactive, size);
 }
 
 void screen_clear_cols(struct screen *screen, size_t row, size_t from_col,
                        size_t to_col, color_t inactive) {
-  if (row >= ROWS)
+  if (row >= screen->rows)
     return;
 
   if (to_col <= from_col)
     return;
 
-  if (to_col > COLS)
+  if (to_col > screen->cols)
     return;
 
-  size_t size = CHAR_WIDTH * (to_col - from_col);
-  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * from_col;
+  size_t size = screen->char_width * (to_col - from_col);
+  size_t offset = get_screen_width(screen) * screen->char_height * row +
+                  screen->char_width * from_col;
 
-  for (size_t i = 0; i < CHAR_HEIGHT; ++i)
-    memset(screen->buffer + offset + (SCREEN_WIDTH * i), inactive, size);
+  for (size_t i = 0; i < screen->char_height; ++i)
+    memset(screen->buffer + offset + (get_screen_width(screen) * i), inactive,
+           size);
 }
 
 void screen_shift_right(struct screen *screen, size_t row, size_t col,
                         size_t cols, color_t inactive) {
-  if (row >= ROWS)
+  if (row >= screen->rows)
     return;
 
-  if (col >= COLS)
+  if (col >= screen->cols)
     return;
 
-  if (col + cols > COLS)
+  if (col + cols > screen->cols)
     return;
 
-  if (col + cols < COLS) {
-    size_t size = CHAR_WIDTH * (COLS - col - cols);
-    size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
-    size_t disp = CHAR_WIDTH * cols;
+  if (col + cols < screen->cols) {
+    size_t size = screen->char_width * (screen->cols - col - cols);
+    size_t offset = get_screen_width(screen) * screen->char_height * row +
+                    screen->char_width * col;
+    size_t disp = screen->char_width * cols;
 
-    for (size_t i = 0; i < CHAR_HEIGHT; ++i)
-      memmove(screen->buffer + offset + (SCREEN_WIDTH * i) + disp,
-              screen->buffer + offset + (SCREEN_WIDTH * i), size);
+    for (size_t i = 0; i < screen->char_height; ++i)
+      memmove(screen->buffer + offset + (get_screen_width(screen) * i) + disp,
+              screen->buffer + offset + (get_screen_width(screen) * i), size);
   }
 
   screen_clear_cols(screen, row, col, col + cols, inactive);
@@ -64,26 +75,28 @@ void screen_shift_right(struct screen *screen, size_t row, size_t col,
 
 void screen_shift_left(struct screen *screen, size_t row, size_t col,
                        size_t cols, color_t inactive) {
-  if (row >= ROWS)
+  if (row >= screen->rows)
     return;
 
-  if (col >= COLS)
+  if (col >= screen->cols)
     return;
 
-  if (col + cols > COLS)
+  if (col + cols > screen->cols)
     return;
 
-  if (col + cols < COLS) {
-    size_t size = CHAR_WIDTH * (COLS - col - cols);
-    size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * row + CHAR_WIDTH * col;
-    size_t disp = CHAR_WIDTH * cols;
+  if (col + cols < screen->cols) {
+    size_t size = screen->char_width * (screen->cols - col - cols);
+    size_t offset = get_screen_width(screen) * screen->char_height * row +
+                    screen->char_width * col;
+    size_t disp = screen->char_width * cols;
 
-    for (size_t i = 0; i < CHAR_HEIGHT; ++i)
-      memcpy(screen->buffer + offset + (SCREEN_WIDTH * i),
-             screen->buffer + offset + (SCREEN_WIDTH * i) + disp, size);
+    for (size_t i = 0; i < screen->char_height; ++i)
+      memcpy(screen->buffer + offset + (get_screen_width(screen) * i),
+             screen->buffer + offset + (get_screen_width(screen) * i) + disp,
+             size);
   }
 
-  screen_clear_cols(screen, row, COLS - cols, COLS, inactive);
+  screen_clear_cols(screen, row, screen->cols - cols, screen->cols, inactive);
 }
 
 void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
@@ -91,7 +104,7 @@ void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
   if (to_row <= from_row)
     return;
 
-  if (to_row > ROWS)
+  if (to_row > screen->rows)
     return;
 
   if (to_row <= from_row + rows) {
@@ -99,9 +112,10 @@ void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
     return;
   }
 
-  size_t disp = SCREEN_WIDTH * CHAR_HEIGHT * rows;
-  size_t size = SCREEN_WIDTH * CHAR_HEIGHT * (to_row - from_row - rows);
-  size_t offset = SCREEN_WIDTH * CHAR_HEIGHT * from_row;
+  size_t disp = get_screen_width(screen) * screen->char_height * rows;
+  size_t size = get_screen_width(screen) * screen->char_height *
+                (to_row - from_row - rows);
+  size_t offset = get_screen_width(screen) * screen->char_height * from_row;
 
   if (scroll == SCROLL_DOWN) {
     memmove((void *)screen->buffer + offset + disp,
@@ -120,18 +134,19 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
                            codepoint_t codepoint, enum font font, bool italic,
                            bool underlined, bool crossedout, color_t active,
                            color_t inactive) {
-  if (row >= ROWS)
+  if (row >= screen->rows)
     return;
 
-  if (col >= COLS)
+  if (col >= screen->cols)
     return;
 
-  size_t base = ((row * COLS * CHAR_HEIGHT) + col) * CHAR_WIDTH;
+  size_t base =
+      ((row * screen->cols * screen->char_height) + col) * screen->char_width;
   const struct bitmap_font *bitmap_font;
   if (font == FONT_BOLD) {
-    bitmap_font = &bold_font;
+    bitmap_font = screen->bold_bitmap_font;
   } else {
-    bitmap_font = &normal_font;
+    bitmap_font = screen->normal_bitmap_font;
   }
 
   const unsigned char *glyph = NULL;
@@ -143,16 +158,16 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
       glyph = find_glyph(bitmap_font, REPLACEMENT_CODEPOINT);
   }
 
-  for (size_t char_y = 0; char_y < CHAR_HEIGHT; char_y++) {
-    for (size_t char_x = 0; char_x < CHAR_WIDTH; char_x++) {
+  for (size_t char_y = 0; char_y < screen->char_height; char_y++) {
+    for (size_t char_x = 0; char_x < screen->char_width; char_x++) {
 
-      size_t i = base + COLS * CHAR_WIDTH * char_y + char_x;
+      size_t i = base + screen->cols * screen->char_width * char_y + char_x;
 
       color_t color = inactive;
 
       if (glyph &&
-          ((underlined && char_y == CHAR_HEIGHT - 2) ||
-           (crossedout && char_y == CHAR_HEIGHT / 2) ||
+          ((underlined && char_y == screen->char_height - 2) ||
+           (crossedout && char_y == screen->char_height / 2) ||
 
            (char_x < bitmap_font->width && char_y < bitmap_font->height &&
 
@@ -192,7 +207,7 @@ static float mandelbrot(float complex z) {
   return 0.0;
 }
 
-#define MARGIN_X ((SCREEN_WIDTH - SCREEN_HEIGHT) / 2)
+#define MARGIN_X ((get_screen_width(screen) - get_screen_height(screen)) / 2)
 
 void screen_test_mandelbrot(struct screen *screen, float window_x,
                             float window_y, float window_r, bool (*cancel)()) {
@@ -202,20 +217,23 @@ void screen_test_mandelbrot(struct screen *screen, float window_x,
   float x_max = window_x + window_r;
   float y_max = window_y + window_r;
 
-  for (size_t screen_x = MARGIN_X; screen_x < SCREEN_WIDTH - MARGIN_X;
-       ++screen_x) {
+  for (size_t screen_x = MARGIN_X;
+       screen_x < get_screen_width(screen) - MARGIN_X; ++screen_x) {
 
     float x =
-        ((float)screen_x / (float)SCREEN_HEIGHT) * (x_max - x_min) + x_min;
+        ((float)screen_x / (float)get_screen_height(screen)) * (x_max - x_min) +
+        x_min;
 
-    for (size_t screen_y = 0; screen_y < SCREEN_HEIGHT; ++screen_y) {
+    for (size_t screen_y = 0; screen_y < get_screen_height(screen);
+         ++screen_y) {
 
-      float y =
-          ((float)screen_y / (float)SCREEN_HEIGHT) * (y_max - y_min) + y_min;
+      float y = ((float)screen_y / (float)get_screen_height(screen)) *
+                    (y_max - y_min) +
+                y_min;
 
       color_t c = (color_t)(mandelbrot(x + y * I) * 6.0 * 6.0 * 6.0) + 16;
 
-      screen->buffer[screen_y * SCREEN_WIDTH + screen_x] = c;
+      screen->buffer[screen_y * get_screen_width(screen) + screen_x] = c;
 
       if (cancel && cancel()) {
         return;
@@ -229,14 +247,16 @@ void screen_test_mandelbrot(struct screen *screen, float window_x,
 #define COLOR_TEST_GRAYSCALE 24
 
 #define COLOR_TEST_ROWS (2 + COLOR_TEST_CUBE_SIZE)
-#define COLOR_TEST_ROW_HEIGHT (SCREEN_HEIGHT / COLOR_TEST_ROWS)
+#define COLOR_TEST_ROW_HEIGHT (get_screen_height(screen) / COLOR_TEST_ROWS)
 #define COLOR_TEST_ROW_PADDING 2
 
-#define COLOR_TEST_BASE_COLORS_WIDTH (SCREEN_WIDTH / COLOR_TEST_BASE_COLORS)
-#define COLOR_TEST_GRAYSCALE_WIDTH (SCREEN_WIDTH / COLOR_TEST_GRAYSCALE)
+#define COLOR_TEST_BASE_COLORS_WIDTH                                           \
+  (get_screen_width(screen) / COLOR_TEST_BASE_COLORS)
+#define COLOR_TEST_GRAYSCALE_WIDTH                                             \
+  (get_screen_width(screen) / COLOR_TEST_GRAYSCALE)
 #define COLOR_TEST_GRAYSCALE_OFFSET 4
 #define COLOR_TEST_CUBE_WIDTH                                                  \
-  (SCREEN_WIDTH / (COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE))
+  (get_screen_width(screen) / (COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE))
 
 #define COLOR_TEST_CUBE_OFFSET 10
 
@@ -246,7 +266,8 @@ void screen_test_colors(struct screen *screen) {
   for (size_t i = 0; i < COLOR_TEST_ROW_HEIGHT - COLOR_TEST_ROW_PADDING; ++i) {
 
     for (size_t j = 0; j < COLOR_TEST_BASE_COLORS; ++j) {
-      size_t pos = SCREEN_WIDTH * (y + i) + COLOR_TEST_BASE_COLORS_WIDTH * j;
+      size_t pos =
+          get_screen_width(screen) * (y + i) + COLOR_TEST_BASE_COLORS_WIDTH * j;
 
       memset(screen->buffer + pos, j, COLOR_TEST_BASE_COLORS_WIDTH);
     }
@@ -261,7 +282,8 @@ void screen_test_colors(struct screen *screen) {
 
       for (size_t j = 0; j < COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE; ++j) {
 
-        size_t pos = COLOR_TEST_CUBE_OFFSET + SCREEN_WIDTH * (y + i) +
+        size_t pos = COLOR_TEST_CUBE_OFFSET +
+                     get_screen_width(screen) * (y + i) +
                      COLOR_TEST_CUBE_WIDTH * j;
 
         memset(screen->buffer + pos,
@@ -278,7 +300,8 @@ void screen_test_colors(struct screen *screen) {
 
     for (size_t j = 0; j < COLOR_TEST_GRAYSCALE; ++j) {
 
-      size_t pos = COLOR_TEST_GRAYSCALE_OFFSET + SCREEN_WIDTH * (y + i) +
+      size_t pos = COLOR_TEST_GRAYSCALE_OFFSET +
+                   get_screen_width(screen) * (y + i) +
                    COLOR_TEST_GRAYSCALE_WIDTH * j;
 
       memset(screen->buffer + pos,

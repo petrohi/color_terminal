@@ -22,7 +22,46 @@
 
 /* USER CODE BEGIN 0 */
 
-static struct screen screen;
+#include "FontProblems/bold.h"
+#include "FontProblems/normal.h"
+
+#define FONT_WIDTH 7
+
+static const struct bitmap_font normal_bitmap_font = {
+    .height = normal_font_height,
+    .width = FONT_WIDTH,
+    .data = normal_font_data,
+    .codepoints_length = sizeof(normal_font_codepoints) / sizeof(int),
+    .codepoints = normal_font_codepoints,
+    .codepoints_map = normal_font_codepoints_map,
+};
+
+static const struct bitmap_font bold_bitmap_font = {
+    .height = bold_font_height,
+    .width = FONT_WIDTH,
+    .data = bold_font_data,
+    .codepoints_length = sizeof(bold_font_codepoints) / sizeof(int),
+    .codepoints = bold_font_codepoints,
+    .codepoints_map = bold_font_codepoints_map,
+};
+
+#define CHAR_WIDTH 7
+#define CHAR_HEIGHT 14
+
+#define ROWS 24
+#define COLS 80
+
+static uint8_t screen_buffer[CHAR_WIDTH * COLS * CHAR_HEIGHT * ROWS];
+
+static struct screen screen = {
+    .char_width = CHAR_WIDTH,
+    .char_height = CHAR_HEIGHT,
+    .rows = ROWS,
+    .cols = COLS,
+    .buffer = screen_buffer,
+    .normal_bitmap_font = &normal_bitmap_font,
+    .bold_bitmap_font = &bold_bitmap_font,
+};
 
 struct screen *ltdc_get_screen() { return &screen; }
 
@@ -121,7 +160,7 @@ void MX_LTDC_Init(void)
   pLayerCfg.Alpha0 = 0;
   pLayerCfg.BlendingFactor1 = LTDC_BLENDING_FACTOR1_CA;
   pLayerCfg.BlendingFactor2 = LTDC_BLENDING_FACTOR2_CA;
-  pLayerCfg.FBStartAdress = (uint32_t)screen.buffer;
+  pLayerCfg.FBStartAdress = (uint32_t)screen_buffer;
   pLayerCfg.ImageWidth = 560;
   pLayerCfg.ImageHeight = 336;
   pLayerCfg.Backcolor.Blue = 0;

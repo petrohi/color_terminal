@@ -21,24 +21,3 @@ const uint8_t *find_glyph(const struct bitmap_font *font,
 
   return NULL;
 }
-
-#include "FontProblems/bold.h"
-#include "FontProblems/normal.h"
-
-const struct bitmap_font normal_font = {
-    .height = normal_font_height,
-    .width = 7,
-    .data = normal_font_data,
-    .codepoints_length = sizeof(normal_font_codepoints) / sizeof(int),
-    .codepoints = normal_font_codepoints,
-    .codepoints_map = normal_font_codepoints_map,
-};
-
-const struct bitmap_font bold_font = {
-    .height = bold_font_height,
-    .width = 7,
-    .data = bold_font_data,
-    .codepoints_length = sizeof(bold_font_codepoints) / sizeof(int),
-    .codepoints = bold_font_codepoints,
-    .codepoints_map = bold_font_codepoints_map,
-};
