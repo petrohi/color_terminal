@@ -149,8 +149,8 @@ static void test_mandelbrot() {
 struct terminal *global_terminal;
 struct terminal_config_ui *global_terminal_config_ui;
 
-#define UART_TRANSMIT_BUFFER_SIZE 64
-#define UART_RECEIVE_BUFFER_SIZE 1024 * 4
+#define UART_TRANSMIT_BUFFER_SIZE 256
+#define UART_RECEIVE_BUFFER_SIZE 4096
 
 #define XOFF_LIMIT UART_RECEIVE_BUFFER_SIZE / 8
 #define KEYBOARD_CHARS_PER_POLL 80
@@ -187,10 +187,10 @@ __attribute__((
     .start_up = START_UP_MESSAGE,
 };
 
-static void uart_transmit(character_t *characters, size_t size) {
+static void uart_transmit(character_t *characters, size_t size, size_t head) {
   if (global_terminal_config_ui->activated) {
     terminal_config_ui_receive_characters(global_terminal_config_ui, characters,
-                                       size);
+                                          size);
   } else {
 #ifdef DEBUG_LOG_RX_TX
     printf("TX: %d\r\n", size);
@@ -365,7 +365,7 @@ int main(void) {
                               UART_RECEIVE_BUFFER_SIZE) != HAL_OK)
     ;
 
-  uint16_t uart_receive_current_offset = 0;
+  uint16_t uart_receive_tail = 0;
 
   /* USER CODE END 2 */
 
@@ -384,19 +384,18 @@ int main(void) {
     if (terminal_config_ui.activated)
       continue;
 
-    uint16_t uart_receive_next_offset =
+    uint16_t uart_receive_head =
         UART_RECEIVE_BUFFER_SIZE - huart3.hdmarx->Instance->NDTR;
-    if (uart_receive_current_offset == uart_receive_next_offset) {
+    if (uart_receive_tail == uart_receive_head) {
       terminal_uart_xon_off(&terminal, XON);
       continue;
     }
 
     uint16_t size = 0;
-    if (uart_receive_current_offset < uart_receive_next_offset)
-      size = uart_receive_next_offset - uart_receive_current_offset;
+    if (uart_receive_tail < uart_receive_head)
+      size = uart_receive_head - uart_receive_tail;
     else
-      size = uart_receive_next_offset +
-             (UART_RECEIVE_BUFFER_SIZE - uart_receive_current_offset);
+      size = uart_receive_head + (UART_RECEIVE_BUFFER_SIZE - uart_receive_tail);
 
 #ifdef DEBUG_LOG_RX_TX
     printf("RX: %d\r\n", size);
@@ -406,17 +405,17 @@ int main(void) {
       terminal_uart_xon_off(&terminal, XOFF);
 
     while (size--) {
-      if (size % 80 == 0) {
+      if (size % KEYBOARD_CHARS_PER_POLL == 0) {
         MX_USB_HOST_Process();
         keyboard_handle(&terminal);
       }
 
-      character_t character = uart_receive_buffer[uart_receive_current_offset];
+      character_t character = uart_receive_buffer[uart_receive_tail];
       terminal_uart_receive_character(&terminal, character);
-      uart_receive_current_offset++;
+      uart_receive_tail++;
 
-      if (uart_receive_current_offset == UART_RECEIVE_BUFFER_SIZE)
-        uart_receive_current_offset = 0;
+      if (uart_receive_tail == UART_RECEIVE_BUFFER_SIZE)
+        uart_receive_tail = 0;
     }
   }
   /* USER CODE END 3 */
