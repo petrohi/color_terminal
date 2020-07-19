@@ -10,8 +10,31 @@
 #define ROWS screen->format.rows
 #define COLS screen->format.cols
 
-#define SCREEN_WIDTH COLS * screen->char_width
-#define SCREEN_HEIGHT ROWS * screen->char_height
+#define CHAR_WIDTH_PIXELS screen->char_width
+#define CHAR_HEIGHT_LINES screen->char_height
+
+#ifdef TERMINAL_8BIT_COLOR
+#define PIXELS_PER_BYTE 1
+#define BYTES_PER_PIXEL 1
+#define LEFT_PADDING_PIXELS 0
+#define RIGHT_PADDING_PIXELS 0
+#else
+#define PIXELS_PER_BYTE 8
+#define BYTES_PER_PIXEL 0
+#define LEFT_PADDING_PIXELS 48
+#define RIGHT_PADDING_PIXELS 16
+#endif
+
+#define LEFT_PADDING_BYTES (LEFT_PADDING_PIXELS / PIXELS_PER_BYTE)
+#define RIGHT_PADDING_BYTES (RIGHT_PADDING_PIXELS / PIXELS_PER_BYTE)
+#define CHAR_WIDTH_BYTES (CHAR_WIDTH_PIXELS / PIXELS_PER_BYTE)
+
+#define SCREEN_WIDTH_PIXELS                                                    \
+  (LEFT_PADDING_PIXELS + COLS * CHAR_WIDTH_PIXELS + RIGHT_PADDING_PIXELS)
+#define SCREEN_WIDTH_BYTES                                                     \
+  (LEFT_PADDING_BYTES + COLS * CHAR_WIDTH_BYTES + RIGHT_PADDING_BYTES)
+
+#define SCREEN_HEIGHT_LINES (ROWS * CHAR_HEIGHT_LINES)
 
 void screen_clear_rows(struct screen *screen, size_t from_row, size_t to_row,
                        color_t inactive) {
@@ -21,8 +44,8 @@ void screen_clear_rows(struct screen *screen, size_t from_row, size_t to_row,
   if (to_row > ROWS)
     return;
 
-  size_t size = SCREEN_WIDTH * screen->char_height * (to_row - from_row);
-  size_t offset = SCREEN_WIDTH * screen->char_height * from_row;
+  size_t size = SCREEN_WIDTH_BYTES * CHAR_HEIGHT_LINES * (to_row - from_row);
+  size_t offset = SCREEN_WIDTH_BYTES * CHAR_HEIGHT_LINES * from_row;
 
   memset(screen->buffer + offset, inactive, size);
 }
@@ -38,12 +61,12 @@ void screen_clear_cols(struct screen *screen, size_t row, size_t from_col,
   if (to_col > COLS)
     return;
 
-  size_t size = screen->char_width * (to_col - from_col);
-  size_t offset =
-      SCREEN_WIDTH * screen->char_height * row + screen->char_width * from_col;
+  size_t size = CHAR_WIDTH_BYTES * (to_col - from_col);
+  size_t offset = SCREEN_WIDTH_BYTES * CHAR_HEIGHT_LINES * row +
+                  CHAR_WIDTH_BYTES * from_col + LEFT_PADDING_BYTES;
 
-  for (size_t i = 0; i < screen->char_height; ++i)
-    memset(screen->buffer + offset + (SCREEN_WIDTH * i), inactive, size);
+  for (size_t i = 0; i < CHAR_HEIGHT_LINES; ++i)
+    memset(screen->buffer + offset + (SCREEN_WIDTH_BYTES * i), inactive, size);
 }
 
 void screen_shift_right(struct screen *screen, size_t row, size_t col,
@@ -58,14 +81,14 @@ void screen_shift_right(struct screen *screen, size_t row, size_t col,
     return;
 
   if (col + cols < COLS) {
-    size_t size = screen->char_width * (COLS - col - cols);
-    size_t offset =
-        SCREEN_WIDTH * screen->char_height * row + screen->char_width * col;
-    size_t disp = screen->char_width * cols;
+    size_t size = CHAR_WIDTH_BYTES * (COLS - col - cols);
+    size_t offset = SCREEN_WIDTH_BYTES * CHAR_HEIGHT_LINES * row +
+                    CHAR_WIDTH_BYTES * col + LEFT_PADDING_BYTES;
+    size_t disp = CHAR_WIDTH_BYTES * cols;
 
-    for (size_t i = 0; i < screen->char_height; ++i)
-      memmove(screen->buffer + offset + (SCREEN_WIDTH * i) + disp,
-              screen->buffer + offset + (SCREEN_WIDTH * i), size);
+    for (size_t i = 0; i < CHAR_HEIGHT_LINES; ++i)
+      memmove(screen->buffer + offset + (SCREEN_WIDTH_BYTES * i) + disp,
+              screen->buffer + offset + (SCREEN_WIDTH_BYTES * i), size);
   }
 
   screen_clear_cols(screen, row, col, col + cols, inactive);
@@ -83,14 +106,14 @@ void screen_shift_left(struct screen *screen, size_t row, size_t col,
     return;
 
   if (col + cols < COLS) {
-    size_t size = screen->char_width * (COLS - col - cols);
-    size_t offset =
-        SCREEN_WIDTH * screen->char_height * row + screen->char_width * col;
-    size_t disp = screen->char_width * cols;
+    size_t size = CHAR_WIDTH_BYTES * (COLS - col - cols);
+    size_t offset = SCREEN_WIDTH_BYTES * CHAR_HEIGHT_LINES * row +
+                    CHAR_WIDTH_BYTES * col + LEFT_PADDING_BYTES;
+    size_t disp = CHAR_WIDTH_BYTES * cols;
 
-    for (size_t i = 0; i < screen->char_height; ++i)
-      memcpy(screen->buffer + offset + (SCREEN_WIDTH * i),
-             screen->buffer + offset + (SCREEN_WIDTH * i) + disp, size);
+    for (size_t i = 0; i < CHAR_HEIGHT_LINES; ++i)
+      memcpy(screen->buffer + offset + (SCREEN_WIDTH_BYTES * i),
+             screen->buffer + offset + (SCREEN_WIDTH_BYTES * i) + disp, size);
   }
 
   screen_clear_cols(screen, row, COLS - cols, COLS, inactive);
@@ -109,9 +132,10 @@ void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
     return;
   }
 
-  size_t disp = SCREEN_WIDTH * screen->char_height * rows;
-  size_t size = SCREEN_WIDTH * screen->char_height * (to_row - from_row - rows);
-  size_t offset = SCREEN_WIDTH * screen->char_height * from_row;
+  size_t disp = SCREEN_WIDTH_BYTES * CHAR_HEIGHT_LINES * rows;
+  size_t size =
+      SCREEN_WIDTH_BYTES * CHAR_HEIGHT_LINES * (to_row - from_row - rows);
+  size_t offset = SCREEN_WIDTH_BYTES * CHAR_HEIGHT_LINES * from_row;
 
   if (scroll == SCROLL_DOWN) {
     memmove((void *)screen->buffer + offset + disp,
@@ -126,6 +150,29 @@ void screen_scroll(struct screen *screen, enum scroll scroll, size_t from_row,
   }
 }
 
+static size_t pixel_offset(struct screen *screen, size_t line, size_t pixel) {
+  return (SCREEN_WIDTH_BYTES * line) + (pixel / PIXELS_PER_BYTE) +
+         LEFT_PADDING_BYTES;
+}
+
+#ifdef TERMINAL_8BIT_COLOR
+static void set_color(struct screen *screen, size_t offset, size_t pixel,
+                      color_t color) {
+  screen->buffer[offset] = color;
+}
+#else
+static void set_color(struct screen *screen, size_t offset, size_t pixel,
+                      color_t color) {
+  offset = ((offset >> 2) << 2) + (3 - (offset & 3));
+  size_t shift = (CHAR_WIDTH_PIXELS - (pixel % PIXELS_PER_BYTE)) - 1;
+
+  if (color)
+    screen->buffer[offset] |= (1 << shift);
+  else
+    screen->buffer[offset] &= ~(1 << shift);
+}
+#endif
+
 void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
                            codepoint_t codepoint, enum font font, bool italic,
                            bool underlined, bool crossedout, color_t active,
@@ -136,7 +183,9 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
   if (col >= COLS)
     return;
 
-  size_t base = ((row * COLS * screen->char_height) + col) * screen->char_width;
+  size_t base_line = row * CHAR_HEIGHT_LINES;
+  size_t base_pixel = col * CHAR_WIDTH_PIXELS;
+
   const struct bitmap_font *bitmap_font;
   if (font == FONT_BOLD) {
     bitmap_font = screen->bold_bitmap_font;
@@ -153,25 +202,27 @@ void screen_draw_codepoint(struct screen *screen, size_t row, size_t col,
       glyph = find_glyph(bitmap_font, REPLACEMENT_CODEPOINT);
   }
 
-  for (size_t char_y = 0; char_y < screen->char_height; char_y++) {
-    for (size_t char_x = 0; char_x < screen->char_width; char_x++) {
+  for (size_t char_line = 0; char_line < CHAR_HEIGHT_LINES; char_line++) {
 
-      size_t i = base + COLS * screen->char_width * char_y + char_x;
+    for (size_t char_pixel = 0; char_pixel < CHAR_WIDTH_PIXELS; char_pixel++) {
+
+      size_t offset =
+          pixel_offset(screen, base_line + char_line, base_pixel + char_pixel);
 
       color_t color = inactive;
 
-      if (glyph &&
-          ((underlined && char_y == screen->char_height - 2) ||
-           (crossedout && char_y == screen->char_height / 2) ||
+      if (glyph && ((underlined && char_line == CHAR_HEIGHT_LINES - 2) ||
+                    (crossedout && char_line == CHAR_HEIGHT_LINES / 2) ||
 
-           (char_x < bitmap_font->width && char_y < bitmap_font->height &&
+                    (char_pixel < bitmap_font->width &&
+                     char_line < bitmap_font->height &&
 
-            glyph[char_y] & (1 << char_x)))) {
+                     glyph[char_line] & (1 << char_pixel)))) {
 
         color = active;
       }
 
-      screen->buffer[i] = color;
+      set_color(screen, offset, base_pixel + char_pixel, color);
     }
   }
 }
@@ -203,7 +254,10 @@ static float mandelbrot(float complex z) {
   return 0.0;
 }
 
-#define MARGIN_X ((SCREEN_WIDTH - SCREEN_HEIGHT) / 2)
+#define MARGIN_X                                                               \
+  ((SCREEN_WIDTH_PIXELS - LEFT_PADDING_PIXELS - RIGHT_PADDING_PIXELS -         \
+    SCREEN_HEIGHT_LINES) /                                                     \
+   2)
 
 void screen_test_mandelbrot(struct screen *screen, float window_x,
                             float window_y, float window_r, bool (*cancel)()) {
@@ -213,20 +267,22 @@ void screen_test_mandelbrot(struct screen *screen, float window_x,
   float x_max = window_x + window_r;
   float y_max = window_y + window_r;
 
-  for (size_t screen_x = MARGIN_X; screen_x < SCREEN_WIDTH - MARGIN_X;
+  for (size_t screen_x = MARGIN_X; screen_x < SCREEN_WIDTH_PIXELS - MARGIN_X;
        ++screen_x) {
 
-    float x =
-        ((float)screen_x / (float)SCREEN_HEIGHT) * (x_max - x_min) + x_min;
+    float x = ((float)screen_x / (float)SCREEN_HEIGHT_LINES) * (x_max - x_min) +
+              x_min;
 
-    for (size_t screen_y = 0; screen_y < SCREEN_HEIGHT; ++screen_y) {
+    for (size_t screen_y = 0; screen_y < SCREEN_HEIGHT_LINES; ++screen_y) {
 
       float y =
-          ((float)screen_y / (float)SCREEN_HEIGHT) * (y_max - y_min) + y_min;
+          ((float)screen_y / (float)SCREEN_HEIGHT_LINES) * (y_max - y_min) +
+          y_min;
 
-      color_t c = (color_t)(mandelbrot(x + y * I) * 6.0 * 6.0 * 6.0) + 16;
+      color_t color = (color_t)(mandelbrot(x + y * I) * 6.0 * 6.0 * 6.0) + 16;
+      size_t offset = pixel_offset(screen, screen_y, screen_x);
 
-      screen->buffer[screen_y * SCREEN_WIDTH + screen_x] = c;
+      set_color(screen, offset, screen_x, color);
 
       if (cancel && cancel()) {
         return;
@@ -242,64 +298,85 @@ void screen_test_mandelbrot(struct screen *screen, float window_x,
 #define COLOR_TEST_GRAYSCALE 24
 
 #define COLOR_TEST_ROWS (2 + COLOR_TEST_CUBE_SIZE)
-#define COLOR_TEST_ROW_HEIGHT (SCREEN_HEIGHT / COLOR_TEST_ROWS)
-#define COLOR_TEST_ROW_PADDING 2
+#define COLOR_TEST_ROW_HEIGHT_LINES (SCREEN_HEIGHT_LINES / COLOR_TEST_ROWS)
+#define COLOR_TEST_ROW_PADDING_LINES 2
 
-#define COLOR_TEST_BASE_COLORS_WIDTH (SCREEN_WIDTH / COLOR_TEST_BASE_COLORS)
-#define COLOR_TEST_GRAYSCALE_WIDTH (SCREEN_WIDTH / COLOR_TEST_GRAYSCALE)
-#define COLOR_TEST_GRAYSCALE_OFFSET 4
-#define COLOR_TEST_CUBE_WIDTH                                                  \
-  (SCREEN_WIDTH / (COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE))
+#define COLOR_TEST_BASE_COLORS_WIDTH_PIXELS                                    \
+  (SCREEN_WIDTH_PIXELS / COLOR_TEST_BASE_COLORS)
+#define COLOR_TEST_GRAYSCALE_WIDTH_PIXELS                                      \
+  (SCREEN_WIDTH_PIXELS / COLOR_TEST_GRAYSCALE)
+#define COLOR_TEST_GRAYSCALE_OFFSET_PIXELS 4
+#define COLOR_TEST_CUBE_WIDTH_PIXELS                                           \
+  (SCREEN_WIDTH_PIXELS / (COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE))
 
 #define COLOR_TEST_CUBE_OFFSET 10
 
 void screen_test_colors(struct screen *screen) {
-  size_t y = 0;
+  size_t line = 0;
 
-  for (size_t i = 0; i < COLOR_TEST_ROW_HEIGHT - COLOR_TEST_ROW_PADDING; ++i) {
+  for (size_t sub_line = 0;
+       sub_line < COLOR_TEST_ROW_HEIGHT_LINES - COLOR_TEST_ROW_PADDING_LINES;
+       ++sub_line) {
 
-    for (size_t j = 0; j < COLOR_TEST_BASE_COLORS; ++j) {
-      size_t pos = SCREEN_WIDTH * (y + i) + COLOR_TEST_BASE_COLORS_WIDTH * j;
+    for (size_t color = 0; color < COLOR_TEST_BASE_COLORS; ++color) {
+      size_t pixel = COLOR_TEST_BASE_COLORS_WIDTH_PIXELS * color;
 
-      memset(screen->buffer + pos, j, COLOR_TEST_BASE_COLORS_WIDTH);
+      for (size_t sub_pixel = 0;
+           sub_pixel < COLOR_TEST_BASE_COLORS_WIDTH_PIXELS; ++sub_pixel) {
+        size_t offset =
+            pixel_offset(screen, line + sub_line, pixel + sub_pixel);
+        set_color(screen, offset, pixel + sub_pixel, color);
+      }
     }
   }
 
-  y += COLOR_TEST_ROW_HEIGHT;
+  line += COLOR_TEST_ROW_HEIGHT_LINES;
 
-  for (size_t k = 0; k < COLOR_TEST_CUBE_SIZE; ++k) {
+  for (size_t cube = 0; cube < COLOR_TEST_CUBE_SIZE; ++cube) {
 
-    for (size_t i = 0; i < COLOR_TEST_ROW_HEIGHT - COLOR_TEST_ROW_PADDING;
-         ++i) {
+    for (size_t sub_line = 0;
+         sub_line < COLOR_TEST_ROW_HEIGHT_LINES - COLOR_TEST_ROW_PADDING_LINES;
+         ++sub_line) {
 
-      for (size_t j = 0; j < COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE; ++j) {
+      for (size_t color = 0;
+           color < COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE; ++color) {
+        size_t pixel =
+            COLOR_TEST_CUBE_OFFSET + COLOR_TEST_CUBE_WIDTH_PIXELS * color;
 
-        size_t pos = COLOR_TEST_CUBE_OFFSET + SCREEN_WIDTH * (y + i) +
-                     COLOR_TEST_CUBE_WIDTH * j;
-
-        memset(screen->buffer + pos,
-               COLOR_TEST_BASE_COLORS +
-                   (k * COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE) + j,
-               COLOR_TEST_CUBE_WIDTH);
+        for (size_t sub_pixel = 0; sub_pixel < COLOR_TEST_CUBE_WIDTH_PIXELS;
+             ++sub_pixel) {
+          size_t offset =
+              pixel_offset(screen, line + sub_line, pixel + sub_pixel);
+          set_color(screen, offset, pixel + sub_pixel,
+                    COLOR_TEST_BASE_COLORS +
+                        (cube * COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE) +
+                        color);
+        }
       }
     }
 
-    y += COLOR_TEST_ROW_HEIGHT;
+    line += COLOR_TEST_ROW_HEIGHT_LINES;
   }
 
-  for (size_t i = 0; i < COLOR_TEST_ROW_HEIGHT - COLOR_TEST_ROW_PADDING; ++i) {
+  for (size_t sub_line = 0;
+       sub_line < COLOR_TEST_ROW_HEIGHT_LINES - COLOR_TEST_ROW_PADDING_LINES;
+       ++sub_line) {
 
-    for (size_t j = 0; j < COLOR_TEST_GRAYSCALE; ++j) {
+    for (size_t color = 0; color < COLOR_TEST_GRAYSCALE; ++color) {
 
-      size_t pos = COLOR_TEST_GRAYSCALE_OFFSET + SCREEN_WIDTH * (y + i) +
-                   COLOR_TEST_GRAYSCALE_WIDTH * j;
+      size_t pixel = COLOR_TEST_GRAYSCALE_OFFSET_PIXELS +
+                     COLOR_TEST_GRAYSCALE_WIDTH_PIXELS * color;
 
-      memset(screen->buffer + pos,
-             COLOR_TEST_BASE_COLORS +
-                 (COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE *
-                  COLOR_TEST_CUBE_SIZE) +
-                 j,
-             COLOR_TEST_GRAYSCALE_WIDTH);
+      for (size_t sub_pixel = 0; sub_pixel < COLOR_TEST_GRAYSCALE_WIDTH_PIXELS;
+           ++sub_pixel) {
+        size_t offset =
+            pixel_offset(screen, line + sub_line, pixel + sub_pixel);
+        set_color(screen, offset, pixel + sub_pixel,
+                  COLOR_TEST_BASE_COLORS +
+                      (COLOR_TEST_CUBE_SIZE * COLOR_TEST_CUBE_SIZE *
+                       COLOR_TEST_CUBE_SIZE) +
+                      color);
+      }
     }
   }
 }
