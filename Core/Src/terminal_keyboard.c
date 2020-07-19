@@ -3,13 +3,7 @@
 #ifdef TERMINAL_USB_KEYBOARD
 #include "usbh_hid_keybd.h"
 #else
-#define KEY_NONE 0
-#define KEY_ESCAPE 1
-#define KEY_TAB 2
-#define KEY_RETURN 3
-#define KEY_CAPS_LOCK 4
-#define KEY_KEYPAD_NUM_LOCK_AND_CLEAR 5
-#define KEY_SCROLL_LOCK 6
+#include "keys.h"
 #endif
 
 #define FIRST_REPEAT_COUNTER 500
@@ -339,7 +333,7 @@ void terminal_keyboard_handle_key(struct terminal *terminal, uint8_t key_code) {
   terminal->repeat_pressed_key = false;
 
   if (terminal->auto_repeat_mode && key_code != KEY_NONE &&
-      key_code != KEY_ESCAPE && key_code != KEY_TAB && key_code != KEY_RETURN &&
+      key_code != KEY_ESCAPE && key_code != KEY_TAB && key_code != KEY_ENTER &&
       key_code != KEY_CAPS_LOCK && key_code != KEY_KEYPAD_NUM_LOCK_AND_CLEAR &&
       key_code != KEY_SCROLL_LOCK && !terminal->ctrl_state) {
     terminal->repeat_counter = FIRST_REPEAT_COUNTER;
