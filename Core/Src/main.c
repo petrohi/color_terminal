@@ -152,7 +152,7 @@ struct terminal_config_ui *global_terminal_config_ui;
 #define UART_TRANSMIT_BUFFER_SIZE 256
 #define UART_RECEIVE_BUFFER_SIZE 4096
 
-#define XOFF_LIMIT UART_RECEIVE_BUFFER_SIZE / 8
+#define XOFF_LIMIT UART_RECEIVE_BUFFER_SIZE / 16
 #define KEYBOARD_CHARS_PER_POLL 80
 
 static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
