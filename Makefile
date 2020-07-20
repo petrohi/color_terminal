@@ -85,7 +85,8 @@ Core/Src/terminal_keyboard.c \
 Core/Src/terminal_config_ui.c \
 Core/Src/terminal_config.c \
 Core/Src/tim.c \
-Core/Src/dma.c
+Core/Src/dma.c \
+Core/Src/rgb.c
 
 # ASM sources
 ASM_SOURCES =  \
