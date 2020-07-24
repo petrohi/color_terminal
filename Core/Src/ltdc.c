@@ -26,10 +26,11 @@
 #include "FontProblems/bold.h"
 #include "FontProblems/normal.h"
 
-#define FONT_WIDTH 7
+#define FONT_WIDTH 8
+#define FONT_HEIGHT 16
 
 static const struct bitmap_font normal_bitmap_font = {
-    .height = normal_font_height,
+    .height = FONT_HEIGHT,
     .width = FONT_WIDTH,
     .data = normal_font_data,
     .codepoints_length = sizeof(normal_font_codepoints) / sizeof(int),
@@ -38,7 +39,7 @@ static const struct bitmap_font normal_bitmap_font = {
 };
 
 static const struct bitmap_font bold_bitmap_font = {
-    .height = bold_font_height,
+    .height = FONT_HEIGHT,
     .width = FONT_WIDTH,
     .data = bold_font_data,
     .codepoints_length = sizeof(bold_font_codepoints) / sizeof(int),
@@ -46,13 +47,13 @@ static const struct bitmap_font bold_bitmap_font = {
     .codepoints_map = bold_font_codepoints_map,
 };
 
-#define CHAR_WIDTH 7
-#define CHAR_HEIGHT 14
+#define CHAR_WIDTH 8
+#define CHAR_HEIGHT 16
 
 #define ROWS 24
 #define COLS 80
 
-static uint8_t screen_buffer[CHAR_WIDTH * COLS * CHAR_HEIGHT * ROWS];
+#define SCREEN_BUFFER 0xd0000000
 
 static struct screen screen = {
     .format =
@@ -62,7 +63,7 @@ static struct screen screen = {
         },
     .char_width = CHAR_WIDTH,
     .char_height = CHAR_HEIGHT,
-    .buffer = screen_buffer,
+    .buffer = SCREEN_BUFFER,
     .normal_bitmap_font = &normal_bitmap_font,
     .bold_bitmap_font = &bold_bitmap_font,
 };
@@ -103,18 +104,18 @@ void MX_LTDC_Init(void)
   {
     Error_Handler();
   }
-  pLayerCfg.WindowX0 = 40;
-  pLayerCfg.WindowX1 = 600;
-  pLayerCfg.WindowY0 = 72;
-  pLayerCfg.WindowY1 = 408;
+  pLayerCfg.WindowX0 = 0;
+  pLayerCfg.WindowX1 = 640;
+  pLayerCfg.WindowY0 = 48;
+  pLayerCfg.WindowY1 = 432;
   pLayerCfg.PixelFormat = LTDC_PIXEL_FORMAT_L8;
   pLayerCfg.Alpha = 255;
   pLayerCfg.Alpha0 = 0;
   pLayerCfg.BlendingFactor1 = LTDC_BLENDING_FACTOR1_CA;
   pLayerCfg.BlendingFactor2 = LTDC_BLENDING_FACTOR2_CA;
-  pLayerCfg.FBStartAdress = (uint32_t)screen_buffer;
-  pLayerCfg.ImageWidth = 560;
-  pLayerCfg.ImageHeight = 336;
+  pLayerCfg.FBStartAdress = SCREEN_BUFFER;
+  pLayerCfg.ImageWidth = 640;
+  pLayerCfg.ImageHeight = 384;
   pLayerCfg.Backcolor.Blue = 0;
   pLayerCfg.Backcolor.Green = 0;
   pLayerCfg.Backcolor.Red = 0;

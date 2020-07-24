@@ -26,6 +26,7 @@
 #include "usart.h"
 #include "usb_host.h"
 #include "gpio.h"
+#include "fmc.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -35,6 +36,9 @@
 
 #include "terminal.h"
 #include "terminal_config_ui.h"
+
+extern USBH_HandleTypeDef hUsbHostHS;
+extern ApplicationTypeDef Appli_state;
 
 /* USER CODE END Includes */
 
@@ -196,7 +200,7 @@ static void uart_transmit(character_t *characters, size_t size, size_t head) {
 #ifdef DEBUG_LOG_RX_TX
     printf("TX: %d\r\n", size);
 #endif
-    while (HAL_UART_Transmit_DMA(&huart3, (void *)characters, size) != HAL_OK)
+    while (HAL_UART_Transmit_DMA(&huart7, (void *)characters, size) != HAL_OK)
       ;
   }
 }
@@ -303,19 +307,18 @@ static void keyboard_handle(struct terminal *terminal) {
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
-int main(void) {
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
 
-  /* MCU
-   * Configuration--------------------------------------------------------*/
+  /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the
-   * Systick. */
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -335,7 +338,8 @@ int main(void) {
   MX_LTDC_Init();
   MX_USB_HOST_Init();
   MX_TIM1_Init();
-  MX_USART3_UART_Init();
+  MX_FMC_Init();
+  MX_UART7_Init();
   /* USER CODE BEGIN 2 */
 
   printf("Hello World\n");
@@ -362,7 +366,7 @@ int main(void) {
   terminal_config_ui_init(&terminal_config_ui, &terminal, &terminal_config);
 
   HAL_TIM_Base_Start_IT(&htim1);
-  while (HAL_UART_Receive_DMA(&huart3, uart_receive_buffer,
+  while (HAL_UART_Receive_DMA(&huart7, uart_receive_buffer,
                               UART_RECEIVE_BUFFER_SIZE) != HAL_OK)
     ;
 
@@ -386,7 +390,7 @@ int main(void) {
       continue;
 
     uint16_t uart_receive_head =
-        UART_RECEIVE_BUFFER_SIZE - huart3.hdmarx->Instance->NDTR;
+        UART_RECEIVE_BUFFER_SIZE - huart7.hdmarx->Instance->NDTR;
     if (uart_receive_tail == uart_receive_head) {
       terminal_uart_xon_off(&terminal, XON);
       continue;
