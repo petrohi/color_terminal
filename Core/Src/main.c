@@ -165,8 +165,8 @@ static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
 static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
 static character_t local_buffer[LOCAL_BUFFER_SIZE];
 
-size_t local_head = 0;
-size_t local_tail = 0;
+static size_t local_head = 0;
+static size_t local_tail = 0;
 
 __attribute__((
     __section__(".flash_data"))) struct terminal_config terminal_config = {
@@ -198,8 +198,8 @@ __attribute__((
     .start_up = START_UP_MESSAGE,
 };
 
-bool config_ui_enter = false;
-uint8_t config_ui_key = KEY_NONE;
+static bool config_ui_enter = false;
+static uint8_t config_ui_key = KEY_NONE;
 
 static void reset() {
   HAL_NVIC_SystemReset();
