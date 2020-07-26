@@ -36,6 +36,7 @@
 
 #include "terminal.h"
 #include "terminal_config_ui.h"
+#include "keys.h"
 
 extern USBH_HandleTypeDef hUsbHostHS;
 extern ApplicationTypeDef Appli_state;
@@ -155,12 +156,17 @@ struct terminal_config_ui *global_terminal_config_ui;
 
 #define UART_TRANSMIT_BUFFER_SIZE 256
 #define UART_RECEIVE_BUFFER_SIZE 4096
+#define LOCAL_BUFFER_SIZE 256
 
 #define XOFF_LIMIT UART_RECEIVE_BUFFER_SIZE / 16
-#define KEYBOARD_CHARS_PER_POLL 80
+#define KEYBOARD_CHARS_PER_POLL 8
 
 static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
 static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
+static character_t local_buffer[LOCAL_BUFFER_SIZE];
+
+size_t local_head = 0;
+size_t local_tail = 0;
 
 __attribute__((
     __section__(".flash_data"))) struct terminal_config terminal_config = {
@@ -192,17 +198,54 @@ __attribute__((
     .start_up = START_UP_MESSAGE,
 };
 
-static void uart_transmit(character_t *characters, size_t size, size_t head) {
-  if (global_terminal_config_ui->activated) {
-    terminal_config_ui_receive_characters(global_terminal_config_ui, characters,
-                                          size);
-  } else {
-#ifdef DEBUG_LOG_RX_TX
-    printf("TX: %d\r\n", size);
-#endif
-    while (HAL_UART_Transmit_DMA(&huart7, (void *)characters, size) != HAL_OK)
-      ;
+bool config_ui_enter = false;
+uint8_t config_ui_key = KEY_NONE;
+
+static void reset() {
+  HAL_NVIC_SystemReset();
+}
+
+static void yield() {
+  MX_USB_HOST_Process();
+
+  if (Appli_state == APPLICATION_READY) {
+
+    HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
+
+    if (info) {
+      if (global_terminal_config_ui->activated) {
+        config_ui_key = info->keys[0];
+      } else if (info->keys[0] == KEY_F12 && (info->lshift || info->rshift)) {
+        config_ui_enter = true;
+      } else {
+        terminal_keyboard_handle_shift(global_terminal,
+                                       info->lshift || info->rshift);
+        terminal_keyboard_handle_alt(global_terminal, info->lalt || info->ralt);
+        terminal_keyboard_handle_ctrl(global_terminal,
+                                      info->lctrl || info->rctrl);
+        terminal_keyboard_handle_key(global_terminal, info->keys[0]);
+      }
+    }
   }
+}
+
+static void uart_transmit(character_t *characters, size_t size, size_t head) {
+#ifdef DEBUG_LOG_RX_TX
+  printf("TX: %d\r\n", size);
+#endif
+  if (!global_terminal->send_receive_mode) {
+    while (size--) {
+      local_buffer[local_head] = *characters;
+      local_head++;
+      characters++;
+
+      if (local_head == LOCAL_BUFFER_SIZE)
+        local_head = 0;
+    }
+  }
+
+  while (HAL_UART_Transmit_DMA(&huart7, (void *)characters, size) != HAL_OK)
+    ;
 }
 
 static void screen_draw_codepoint_callback(struct format format, size_t row,
@@ -216,32 +259,33 @@ static void screen_draw_codepoint_callback(struct format format, size_t row,
 
 static void screen_clear_rows_callback(struct format format, size_t from_row,
                                        size_t to_row, color_t inactive) {
-  screen_clear_rows(ltdc_get_screen(format), from_row, to_row, inactive);
+  screen_clear_rows(ltdc_get_screen(format), from_row, to_row, inactive, yield);
 }
 
 static void screen_clear_cols_callback(struct format format, size_t row,
                                        size_t from_col, size_t to_col,
                                        color_t inactive) {
-  screen_clear_cols(ltdc_get_screen(format), row, from_col, to_col, inactive);
+  screen_clear_cols(ltdc_get_screen(format), row, from_col, to_col, inactive,
+                    yield);
 }
 
 static void screen_scroll_callback(struct format format, enum scroll scroll,
                                    size_t from_row, size_t to_row, size_t rows,
                                    color_t inactive) {
   screen_scroll(ltdc_get_screen(format), scroll, from_row, to_row, rows,
-                inactive);
+                inactive, yield);
 }
 
 static void screen_shift_right_callback(struct format format, size_t row,
                                         size_t col, size_t cols,
                                         color_t inactive) {
-  screen_shift_right(ltdc_get_screen(format), row, col, cols, inactive);
+  screen_shift_right(ltdc_get_screen(format), row, col, cols, inactive, yield);
 }
 
 static void screen_shift_left_callback(struct format format, size_t row,
                                        size_t col, size_t cols,
                                        color_t inactive) {
-  screen_shift_left(ltdc_get_screen(format), row, col, cols, inactive);
+  screen_shift_left(ltdc_get_screen(format), row, col, cols, inactive, yield);
 }
 
 static void screen_test_callback(struct format format,
@@ -284,24 +328,6 @@ static void keyboard_set_leds(struct lock_state state) {
       (state.scroll ? 0x4 : 0) | (state.caps ? 0x2 : 0) | (state.num ? 1 : 0);
   while (USBH_HID_SetReport(&hUsbHostHS, 0x02, 0x0, &led_state, 1) == USBH_BUSY)
     ;
-}
-
-static void keyboard_handle(struct terminal *terminal) {
-  if (Appli_state == APPLICATION_READY) {
-
-    HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
-
-    if (info) {
-      if (info->keys[0] == KEY_F12 && (info->lshift || info->rshift)) {
-        terminal_config_ui_enter(global_terminal_config_ui);
-      } else {
-        terminal_keyboard_handle_shift(terminal, info->lshift || info->rshift);
-        terminal_keyboard_handle_alt(terminal, info->lalt || info->ralt);
-        terminal_keyboard_handle_ctrl(terminal, info->lctrl || info->rctrl);
-        terminal_keyboard_handle_key(terminal, info->keys[0]);
-      }
-    }
-  }
 }
 
 /* USER CODE END 0 */
@@ -354,7 +380,8 @@ int main(void)
       .screen_scroll = screen_scroll_callback,
       .screen_shift_left = screen_shift_left_callback,
       .screen_shift_right = screen_shift_right_callback,
-      .system_reset = HAL_NVIC_SystemReset,
+      .system_reset = reset,
+      .system_yield = yield,
       .screen_test = screen_test_callback,
       .system_write_config = system_write_config_callback};
   terminal_init(&terminal, &callbacks, &terminal_config, uart_transmit_buffer,
@@ -381,46 +408,72 @@ int main(void)
     MX_USB_HOST_Process();
 
     /* USER CODE BEGIN 3 */
-
-    keyboard_handle(&terminal);
     terminal_screen_update(&terminal);
     terminal_keyboard_repeat_key(&terminal);
 
-    if (terminal_config_ui.activated)
-      continue;
+    yield();
 
-    uint16_t uart_receive_head =
-        UART_RECEIVE_BUFFER_SIZE - huart7.hdmarx->Instance->NDTR;
-    if (uart_receive_tail == uart_receive_head) {
-      terminal_uart_xon_off(&terminal, XON);
+    if (terminal_config_ui.activated) {
+      if (config_ui_key != KEY_NONE) {
+        terminal_config_ui_handle_key(&terminal_config_ui, config_ui_key);
+        config_ui_key = KEY_NONE;
+      }
+
       continue;
     }
 
-    uint16_t size = 0;
-    if (uart_receive_tail < uart_receive_head)
-      size = uart_receive_head - uart_receive_tail;
-    else
-      size = uart_receive_head + (UART_RECEIVE_BUFFER_SIZE - uart_receive_tail);
+    if (config_ui_enter) {
+      terminal_config_ui_enter(global_terminal_config_ui);
+      config_ui_enter = false;
+    }
+
+    if (local_tail != local_head) {
+      size_t size = 0;
+      if (local_tail < local_head)
+        size = local_head - local_tail;
+      else
+        size = local_head + (LOCAL_BUFFER_SIZE - local_tail);
+
+      while (size--) {
+        character_t character = local_buffer[local_tail];
+        terminal_uart_receive_character(&terminal, character);
+        local_tail++;
+
+        if (local_tail == LOCAL_BUFFER_SIZE)
+          local_tail = 0;
+      }
+    }
+
+    uint16_t uart_receive_head =
+        UART_RECEIVE_BUFFER_SIZE - huart7.hdmarx->Instance->NDTR;
+
+    if (uart_receive_tail != uart_receive_head) {
+      uint16_t size = 0;
+      if (uart_receive_tail < uart_receive_head)
+        size = uart_receive_head - uart_receive_tail;
+      else
+        size =
+            uart_receive_head + (UART_RECEIVE_BUFFER_SIZE - uart_receive_tail);
 
 #ifdef DEBUG_LOG_RX_TX
-    printf("RX: %d\r\n", size);
+      printf("RX: %d\r\n", size);
 #endif
 
-    if (size > XOFF_LIMIT)
-      terminal_uart_xon_off(&terminal, XOFF);
+      if (size > XOFF_LIMIT)
+        terminal_uart_xon_off(&terminal, XOFF);
 
-    while (size--) {
-      if (size % KEYBOARD_CHARS_PER_POLL == 0) {
-        MX_USB_HOST_Process();
-        keyboard_handle(&terminal);
+      while (size--) {
+        yield();
+
+        character_t character = uart_receive_buffer[uart_receive_tail];
+        terminal_uart_receive_character(&terminal, character);
+        uart_receive_tail++;
+
+        if (uart_receive_tail == UART_RECEIVE_BUFFER_SIZE)
+          uart_receive_tail = 0;
       }
-
-      character_t character = uart_receive_buffer[uart_receive_tail];
-      terminal_uart_receive_character(&terminal, character);
-      uart_receive_tail++;
-
-      if (uart_receive_tail == UART_RECEIVE_BUFFER_SIZE)
-        uart_receive_tail = 0;
+    } else {
+      terminal_uart_xon_off(&terminal, XON);
     }
   }
   /* USER CODE END 3 */

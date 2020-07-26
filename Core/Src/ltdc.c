@@ -63,7 +63,7 @@ static struct screen screen = {
         },
     .char_width = CHAR_WIDTH,
     .char_height = CHAR_HEIGHT,
-    .buffer = SCREEN_BUFFER,
+    .buffer = (uint8_t*)SCREEN_BUFFER,
     .normal_bitmap_font = &normal_bitmap_font,
     .bold_bitmap_font = &bold_bitmap_font,
 };
