@@ -151,14 +151,15 @@ static void test_mandelbrot() {
 }
 */
 
-struct terminal *global_terminal;
-struct terminal_config_ui *global_terminal_config_ui;
+struct terminal *global_terminal = NULL;
+struct terminal_config_ui *global_terminal_config_ui = NULL;
 
 #define UART_TRANSMIT_BUFFER_SIZE 256
-#define UART_RECEIVE_BUFFER_SIZE 4096
+#define UART_RECEIVE_BUFFER_SIZE (2014 * 4)
 #define LOCAL_BUFFER_SIZE 256
 
 #define XOFF_LIMIT UART_RECEIVE_BUFFER_SIZE / 16
+#define XON_LIMIT XOFF_LIMIT / 2
 #define KEYBOARD_CHARS_PER_POLL 8
 
 static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
@@ -213,11 +214,11 @@ static void yield() {
     HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
 
     if (info) {
-      if (global_terminal_config_ui->activated) {
+      if (global_terminal_config_ui && global_terminal_config_ui->activated) {
         config_ui_key = info->keys[0];
       } else if (info->keys[0] == KEY_F12 && (info->lshift || info->rshift)) {
         config_ui_enter = true;
-      } else {
+      } else if (global_terminal) {
         terminal_keyboard_handle_shift(global_terminal,
                                        info->lshift || info->rshift);
         terminal_keyboard_handle_alt(global_terminal, info->lalt || info->ralt);
@@ -414,11 +415,7 @@ int main(void)
     yield();
 
     if (terminal_config_ui.activated) {
-      if (config_ui_key != KEY_NONE) {
-        terminal_config_ui_handle_key(&terminal_config_ui, config_ui_key);
-        config_ui_key = KEY_NONE;
-      }
-
+      terminal_config_ui_handle_key(&terminal_config_ui, config_ui_key);
       continue;
     }
 
@@ -464,6 +461,9 @@ int main(void)
 
       while (size--) {
         yield();
+
+        if (size < XON_LIMIT)
+          terminal_uart_xon_off(&terminal, XON);
 
         character_t character = uart_receive_buffer[uart_receive_tail];
         terminal_uart_receive_character(&terminal, character);
