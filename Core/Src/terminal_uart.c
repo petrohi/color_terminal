@@ -640,7 +640,10 @@ static void receive_cha(struct terminal *terminal, character_t character) {
   int16_t col = get_esc_param(terminal, 0);
 
   terminal_screen_move_cursor_absolute(
-      terminal, get_terminal_screen_cursor_row(terminal), col - 1);
+      terminal,
+      get_terminal_screen_cursor_row(terminal) +
+          (terminal->vs.cursor_last_col ? 1 : 0),
+      col - 1);
   clear_receive_table(terminal);
 }
 
