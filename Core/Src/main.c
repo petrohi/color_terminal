@@ -155,12 +155,8 @@ struct terminal *global_terminal = NULL;
 struct terminal_config_ui *global_terminal_config_ui = NULL;
 
 #define UART_TRANSMIT_BUFFER_SIZE 256
-#define UART_RECEIVE_BUFFER_SIZE (2014 * 4)
+#define UART_RECEIVE_BUFFER_SIZE (1024 * 4)
 #define LOCAL_BUFFER_SIZE 256
-
-#define XOFF_LIMIT UART_RECEIVE_BUFFER_SIZE / 16
-#define XON_LIMIT XOFF_LIMIT / 2
-#define KEYBOARD_CHARS_PER_POLL 8
 
 static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
 static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
@@ -197,6 +193,8 @@ __attribute__((
     .backspace_mode = false,
 
     .start_up = START_UP_MESSAGE,
+
+    .flow_control = true,
 };
 
 static bool config_ui_enter = false;
@@ -456,14 +454,11 @@ int main(void)
       printf("RX: %d\r\n", size);
 #endif
 
-      if (size > XOFF_LIMIT)
-        terminal_uart_xon_off(&terminal, XOFF);
+      terminal_uart_flow_control(&terminal, size);
 
       while (size--) {
         yield();
-
-        if (size < XON_LIMIT)
-          terminal_uart_xon_off(&terminal, XON);
+        terminal_uart_flow_control(&terminal, size);
 
         character_t character = uart_receive_buffer[uart_receive_tail];
         terminal_uart_receive_character(&terminal, character);
@@ -473,7 +468,7 @@ int main(void)
           uart_receive_tail = 0;
       }
     } else {
-      terminal_uart_xon_off(&terminal, XON);
+      terminal_uart_flow_control(&terminal, 0);
     }
   }
   /* USER CODE END 3 */
