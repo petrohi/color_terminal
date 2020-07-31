@@ -197,9 +197,6 @@ __attribute__((
     .flow_control = true,
 };
 
-static bool config_ui_enter = false;
-static uint8_t config_ui_key = KEY_NONE;
-
 static void reset() {
   HAL_NVIC_SystemReset();
 }
@@ -211,19 +208,10 @@ static void yield() {
 
     HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
 
-    if (info) {
-      if (global_terminal_config_ui && global_terminal_config_ui->activated) {
-        config_ui_key = info->keys[0];
-      } else if (info->keys[0] == KEY_F12 && (info->lshift || info->rshift)) {
-        config_ui_enter = true;
-      } else if (global_terminal) {
-        terminal_keyboard_handle_shift(global_terminal,
-                                       info->lshift || info->rshift);
-        terminal_keyboard_handle_alt(global_terminal, info->lalt || info->ralt);
-        terminal_keyboard_handle_ctrl(global_terminal,
-                                      info->lctrl || info->rctrl);
-        terminal_keyboard_handle_key(global_terminal, info->keys[0]);
-      }
+    if (info && global_terminal) {
+      terminal_keyboard_handle_key(
+          global_terminal, info->lshift || info->rshift,
+          info->lalt || info->ralt, info->lctrl || info->rctrl, info->keys[0]);
     }
   }
 }
@@ -307,8 +295,11 @@ static void screen_test_callback(struct format format,
   }
 }
 
-static void
-system_write_config_callback(struct terminal_config *terminal_config_copy) {
+static void activate_config() {
+  terminal_config_ui_activate(global_terminal_config_ui);
+}
+
+static void write_config(struct terminal_config *terminal_config_copy) {
   HAL_FLASH_Unlock();
   __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR |
                          FLASH_FLAG_PGAERR | FLASH_FLAG_PGSERR);
@@ -379,10 +370,11 @@ int main(void)
       .screen_scroll = screen_scroll_callback,
       .screen_shift_left = screen_shift_left_callback,
       .screen_shift_right = screen_shift_right_callback,
-      .system_reset = reset,
-      .system_yield = yield,
       .screen_test = screen_test_callback,
-      .system_write_config = system_write_config_callback};
+      .reset = reset,
+      .yield = yield,
+      .activate_config = activate_config,
+      .write_config = write_config};
   terminal_init(&terminal, &callbacks, &terminal_config, uart_transmit_buffer,
                 UART_TRANSMIT_BUFFER_SIZE);
   global_terminal = &terminal;
@@ -412,15 +404,8 @@ int main(void)
 
     yield();
 
-    if (terminal_config_ui.activated) {
-      terminal_config_ui_handle_key(&terminal_config_ui, config_ui_key);
+    if (terminal_config_ui.activated)
       continue;
-    }
-
-    if (config_ui_enter) {
-      terminal_config_ui_enter(global_terminal_config_ui);
-      config_ui_enter = false;
-    }
 
     if (local_tail != local_head) {
       size_t size = 0;
@@ -458,6 +443,10 @@ int main(void)
 
       while (size--) {
         yield();
+
+        if (terminal_config_ui.activated)
+          break;
+
         terminal_uart_flow_control(&terminal, size);
 
         character_t character = uart_receive_buffer[uart_receive_tail];
