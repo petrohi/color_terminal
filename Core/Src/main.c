@@ -167,10 +167,7 @@ static size_t local_tail = 0;
 
 __attribute__((
     __section__(".flash_data"))) struct terminal_config terminal_config = {
-    .format = {
-      .cols = 80,
-      .rows = 24,
-    },
+    .format_rows = FORMAT_24_ROWS,
     .monochrome = false,
 
     .baud_rate = BAUD_RATE_115200,

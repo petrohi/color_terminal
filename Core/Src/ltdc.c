@@ -26,6 +26,8 @@
 #include "FontProblems/bold.h"
 #include "FontProblems/normal.h"
 
+extern struct terminal_config terminal_config;
+
 #define FONT_WIDTH 8
 #define FONT_HEIGHT 16
 
@@ -50,29 +52,35 @@ static const struct bitmap_font bold_bitmap_font = {
 #define CHAR_WIDTH 8
 #define CHAR_HEIGHT 16
 
-#define ROWS 24
-#define COLS 80
-
 #define SCREEN_BUFFER 0xd0000000
 
-static struct screen screen = {
-    .format =
-        {
-            .rows = ROWS,
-            .cols = COLS,
-        },
+static struct screen screen_24_rows = {
+    .format = {.rows = 24, .cols = 80},
     .char_width = CHAR_WIDTH,
     .char_height = CHAR_HEIGHT,
-    .buffer = (uint8_t*)SCREEN_BUFFER,
+    .buffer = (uint8_t *)SCREEN_BUFFER,
+    .normal_bitmap_font = &normal_bitmap_font,
+    .bold_bitmap_font = &bold_bitmap_font,
+};
+
+static struct screen screen_30_rows = {
+    .format = {.rows = 30, .cols = 80},
+    .char_width = CHAR_WIDTH,
+    .char_height = CHAR_HEIGHT,
+    .buffer = (uint8_t *)SCREEN_BUFFER,
     .normal_bitmap_font = &normal_bitmap_font,
     .bold_bitmap_font = &bold_bitmap_font,
 };
 
 struct screen *ltdc_get_screen(struct format format) {
-  if (format.rows != screen.format.rows || format.cols != screen.format.cols)
-    return NULL;
+  if (format.cols == 80) {
+    if (format.rows == 24)
+      return &screen_24_rows;
+    else if (format.rows == 30)
+      return &screen_30_rows;
+  }
 
-  return &screen;
+  return NULL;
 }
 
 /* USER CODE END 0 */
@@ -106,8 +114,6 @@ void MX_LTDC_Init(void)
   }
   pLayerCfg.WindowX0 = 0;
   pLayerCfg.WindowX1 = 640;
-  pLayerCfg.WindowY0 = 48;
-  pLayerCfg.WindowY1 = 432;
   pLayerCfg.PixelFormat = LTDC_PIXEL_FORMAT_L8;
   pLayerCfg.Alpha = 255;
   pLayerCfg.Alpha0 = 0;
@@ -115,10 +121,21 @@ void MX_LTDC_Init(void)
   pLayerCfg.BlendingFactor2 = LTDC_BLENDING_FACTOR2_CA;
   pLayerCfg.FBStartAdress = SCREEN_BUFFER;
   pLayerCfg.ImageWidth = 640;
-  pLayerCfg.ImageHeight = 384;
   pLayerCfg.Backcolor.Blue = 0;
   pLayerCfg.Backcolor.Green = 0;
   pLayerCfg.Backcolor.Red = 0;
+  switch (terminal_config.format_rows) {
+  case FORMAT_24_ROWS:
+    pLayerCfg.WindowY0 = 48;
+    pLayerCfg.WindowY1 = 432;
+    pLayerCfg.ImageHeight = 384;
+    break;
+  case FORMAT_30_ROWS:
+    pLayerCfg.WindowY0 = 0;
+    pLayerCfg.WindowY1 = 480;
+    pLayerCfg.ImageHeight = 480;
+    break;
+  }
   if (HAL_LTDC_ConfigLayer(&hltdc, &pLayerCfg, 0) != HAL_OK)
   {
     Error_Handler();
