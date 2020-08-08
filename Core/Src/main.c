@@ -175,6 +175,7 @@ __attribute__((
     .parity = PARITY_NONE,
 
     .charset = CHARSET_UTF8,
+    .keyboard_compatibility = KEYBOARD_COMPATIBILITY_PC,
     .receive_c1_mode = C1_MODE_8BIT,
     .transmit_c1_mode = C1_MODE_7BIT,
 
@@ -214,7 +215,7 @@ static void yield() {
 }
 
 static void uart_transmit(character_t *characters, size_t size, size_t head) {
-#ifdef DEBUG_LOG_RX_TX
+#ifdef DEBUG_LOG_TX
   printf("TX: %d\r\n", size);
 #endif
   if (!global_terminal->send_receive_mode) {
@@ -432,7 +433,7 @@ int main(void)
         size =
             uart_receive_head + (UART_RECEIVE_BUFFER_SIZE - uart_receive_tail);
 
-#ifdef DEBUG_LOG_RX_TX
+#ifdef DEBUG_LOG_RX
       printf("RX: %d\r\n", size);
 #endif
 
