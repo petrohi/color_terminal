@@ -155,7 +155,7 @@ struct terminal *global_terminal = NULL;
 struct terminal_config_ui *global_terminal_config_ui = NULL;
 
 #define UART_TRANSMIT_BUFFER_SIZE 256
-#define UART_RECEIVE_BUFFER_SIZE (1024 * 4)
+#define UART_RECEIVE_BUFFER_SIZE (1024 * 16)
 #define LOCAL_BUFFER_SIZE 256
 
 static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
@@ -164,6 +164,14 @@ static character_t local_buffer[LOCAL_BUFFER_SIZE];
 
 static size_t local_head = 0;
 static size_t local_tail = 0;
+
+#define MAX_COLS 80
+#define MAX_ROWS 30
+#define TAB_STOPS_SIZE (MAX_COLS / 8)
+
+static struct visual_cell default_cells[MAX_ROWS * MAX_COLS];
+static struct visual_cell alt_cells[MAX_ROWS * MAX_COLS];
+uint8_t tab_stops[TAB_STOPS_SIZE];
 
 __attribute__((
     __section__(".flash_data"))) struct terminal_config terminal_config = {
@@ -373,7 +381,8 @@ int main(void)
       .yield = yield,
       .activate_config = activate_config,
       .write_config = write_config};
-  terminal_init(&terminal, &callbacks, &terminal_config, uart_transmit_buffer,
+  terminal_init(&terminal, &callbacks, default_cells, alt_cells, tab_stops,
+                TAB_STOPS_SIZE, &terminal_config, uart_transmit_buffer,
                 UART_TRANSMIT_BUFFER_SIZE);
   global_terminal = &terminal;
 
