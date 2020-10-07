@@ -197,6 +197,7 @@ __attribute__((
     .auto_repeat_mode = true,
     .ansi_mode = true,
     .backspace_mode = false,
+    .application_keypad_mode = false,
 
     .start_up = START_UP_MESSAGE,
 
@@ -389,6 +390,8 @@ int main(void)
   struct terminal_config_ui terminal_config_ui;
   global_terminal_config_ui = &terminal_config_ui;
   terminal_config_ui_init(&terminal_config_ui, &terminal, &terminal_config);
+
+  terminal_keyboard_update_leds(&terminal);
 
   HAL_TIM_Base_Start_IT(&htim1);
   while (HAL_UART_Receive_DMA(&huart7, uart_receive_buffer,
