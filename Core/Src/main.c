@@ -198,6 +198,7 @@ __attribute__((
     .ansi_mode = true,
     .backspace_mode = false,
     .application_keypad_mode = false,
+    .keyboard_layout = KEYBOARD_LAYOUT_US,
 
     .start_up = START_UP_MESSAGE,
 
@@ -216,9 +217,21 @@ static void yield() {
     HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
 
     if (info && global_terminal) {
+      bool menu = false;
+      uint8_t key = KEY_NONE;
+
+      for (size_t i = 0; i < 6; ++i) {
+        if (info->keys[i] == KEY_MENU) {
+          menu = true;
+        } else if (key == KEY_NONE) {
+          key = info->keys[i];
+        }
+      }
+
       terminal_keyboard_handle_key(
           global_terminal, info->lshift || info->rshift,
-          info->lalt || info->ralt, info->lctrl || info->rctrl, info->keys[0]);
+          info->lalt || info->ralt, info->lctrl || info->rctrl,
+          info->lgui || info->rgui, menu, key);
     }
   }
 }
