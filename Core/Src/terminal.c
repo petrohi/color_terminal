@@ -2,7 +2,7 @@
 
 #define PRODUCT_NAME                                                           \
   "\33[1;91mA\33[92mS\33[93mC\33[94mI\33[95mI\33[39m Terminal\33[m\r\n"
-#define PRODUCT_VERSION "Version 3.0.1\r\n"
+#define PRODUCT_VERSION "Version 3.0.2\r\n"
 #ifdef TERMINAL_8BIT_COLOR
 #define PRODUCT_COPYRIGHT                                                      \
   "Copyright (C) 2019-2020 Peter Hizalev\r\n"                                  \
@@ -78,7 +78,11 @@ void terminal_init(struct terminal *terminal,
 
   terminal->flow_control = config->flow_control;
 
-  terminal_keyboard_init(terminal, config);
+  terminal->lock_state.caps = 0;
+  terminal->lock_state.scroll = 0;
+  terminal->lock_state.num = config->application_keypad_mode ? 0 : 1;
+
+  terminal_keyboard_init(terminal, config->keyboard_layout);
   terminal_screen_init(terminal);
   terminal_uart_init(terminal);
 

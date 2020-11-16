@@ -774,16 +774,12 @@ void terminal_keyboard_repeat_key(struct terminal *terminal) {
 }
 
 void terminal_keyboard_init(struct terminal *terminal,
-                            const struct terminal_config *config) {
-  terminal->lock_state.caps = 0;
-  terminal->lock_state.scroll = 0;
-  terminal->lock_state.num = config->application_keypad_mode ? 0 : 1;
-
+                            enum keyboard_layout keyboard_layout) {
   terminal->pressed_key_code = 0;
   terminal->repeat_counter = 0;
   terminal->repeat_pressed_key = false;
 
-  switch (config->keyboard_layout) {
+  switch (keyboard_layout) {
   case KEYBOARD_LAYOUT_UK:
     terminal->keys_entries = uk_entries;
     break;

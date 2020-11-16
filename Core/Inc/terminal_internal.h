@@ -13,7 +13,7 @@ void terminal_uart_init(struct terminal *terminal);
 void terminal_uart_xon_off(struct terminal *terminal, enum xon_off xon_off);
 
 void terminal_keyboard_init(struct terminal *terminal,
-                            const struct terminal_config *config);
+                            enum keyboard_layout keyboard_layout);
 
 void terminal_keyboard_update_repeat_counter(struct terminal *terminal);
 
