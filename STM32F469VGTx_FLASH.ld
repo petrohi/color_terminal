@@ -64,6 +64,7 @@ MEMORY
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 320K
 CCMRAM (xrw)      : ORIGIN = 0x10000000, LENGTH = 64K
 FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 1024K
+FLASH_DATA (rwx)      : ORIGIN = 0x080e0000, LENGTH = 128K
 }
 
 /* Define output sections */
@@ -130,6 +131,13 @@ SECTIONS
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
   } >FLASH
+
+  .flash_data :
+  {
+    . = ALIGN(4);
+     KEEP(*(.flash_data))
+    . = ALIGN(4);
+  } >FLASH_DATA
 
   .dma :
   {

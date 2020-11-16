@@ -105,8 +105,8 @@ static struct visual_cell default_cells[MAX_ROWS * MAX_COLS];
 static struct visual_cell alt_cells[MAX_ROWS * MAX_COLS];
 uint8_t tab_stops[TAB_STOPS_SIZE];
 
-/*__attribute__((
-    __section__(".flash_data")))*/ struct terminal_config terminal_config = {
+__attribute__((
+    __section__(".flash_data"))) struct terminal_config terminal_config = {
     .format_rows = FORMAT_24_ROWS,
 
     .baud_rate = BAUD_RATE_115200,
