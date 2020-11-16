@@ -86,13 +86,13 @@ struct screen *ltdc_get_screen(struct format format) {
   return NULL;
 }
 
-static uint8_t reverse_byte(uint8_t byte) { 
-  uint8_t reversed_byte = 0; 
+static uint8_t reverse_byte(uint8_t byte) {
+  uint8_t reversed_byte = 0;
   for (size_t i = 0; i < 8; i++)
-    if((byte & (1 << i))) 
-      reversed_byte |= 1 << (7 - i);   
+    if ((byte & (1 << i)))
+      reversed_byte |= 1 << (7 - i);
   return reversed_byte;
-} 
+}
 
 /* USER CODE END 0 */
 
@@ -158,8 +158,8 @@ void MX_LTDC_Init(void)
   for (size_t i = 0; i < RGB_TABLE_SIZE; ++i) {
     uint32_t entry = rgb_table[i];
     rgb_table_fixed[i] = reverse_byte((entry & 0xff) >> 2) |
-      (reverse_byte(((entry >> 8) & 0xff) >> 2) << 8) |
-      (reverse_byte(((entry >> 16) & 0xff) >> 2) << 16);
+                         (reverse_byte(((entry >> 8) & 0xff) >> 2) << 8) |
+                         (reverse_byte(((entry >> 16) & 0xff) >> 2) << 16);
   }
 
   if (HAL_LTDC_ConfigCLUT(&hltdc, (uint32_t *)rgb_table_fixed, RGB_TABLE_SIZE, 0) !=

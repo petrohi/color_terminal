@@ -89,8 +89,10 @@ struct terminal_config_ui *global_terminal_config_ui = NULL;
 #define UART_RECEIVE_BUFFER_SIZE (1024 * 16)
 #define LOCAL_BUFFER_SIZE 256
 
- __attribute__((section(".dma"))) static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
- __attribute__((section(".dma"))) static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
+__attribute__((section(".dma"))) static character_t
+    uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
+__attribute__((section(".dma"))) static character_t
+    uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
 
 static character_t local_buffer[LOCAL_BUFFER_SIZE];
 
@@ -314,8 +316,6 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_GPIO_WritePin(READY_LED_GPIO_Port, READY_LED_Pin, GPIO_PIN_SET);
-
   struct terminal terminal;
   struct terminal_callbacks callbacks = {
       .keyboard_set_leds = keyboard_set_leds,
@@ -348,6 +348,8 @@ int main(void)
     ;
 
   uint16_t uart_receive_tail = 0;
+
+  HAL_GPIO_WritePin(READY_LED_GPIO_Port, READY_LED_Pin, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
 
