@@ -58,8 +58,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define USB_OTG_HS_DRIVE_VBUS_Pin GPIO_PIN_4
-#define USB_OTG_HS_DRIVE_VBUS_GPIO_Port GPIOC
+#define READY_LED_Pin GPIO_PIN_15
+#define READY_LED_GPIO_Port GPIOC
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

@@ -24,21 +24,24 @@
 #include "ltdc.h"
 #include "tim.h"
 #include "usart.h"
+#include "usb_device.h"
 #include "usb_host.h"
 #include "gpio.h"
-#include "fmc.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include <stdio.h>
-#include <string.h>
+#include <stdbool.h>
 
+#include "usbh_core.h"
+#include "usbh_hid.h"
+#include "usbd_cdc_if.h"
+
+#include "keys.h"
 #include "terminal.h"
 #include "terminal_config_ui.h"
-#include "keys.h"
 
-extern USBH_HandleTypeDef hUsbHostHS;
+extern USBH_HandleTypeDef hUsbHostFS;
 extern ApplicationTypeDef Appli_state;
 
 /* USER CODE END Includes */
@@ -50,11 +53,6 @@ extern ApplicationTypeDef Appli_state;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
-#define MANDELBROT_X -0.7453
-#define MANDELBROT_Y 0.1127
-#define MANDELBROT_R 6.5e-4
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -80,76 +78,9 @@ void MX_USB_HOST_Process(void);
 /* USER CODE BEGIN 0 */
 
 int _write(int file, char *ptr, int len) {
-  for (int i = 0; i < len; i++) {
-    ITM_SendChar(*ptr++);
-  }
+  CDC_Transmit_HS(ptr, len);
   return len;
 }
-
-/*
-static bool cancel_mandelbrot() {
-  MX_USB_HOST_Process();
-  HID_KEYBD_Info_TypeDef *info = 0; //MX_USBH_HID_KeyboardDecode();
-  return (info && info->keys[0] == KEY_ESCAPE);
-}
-
-static void test_mandelbrot() {
-
-  static float window_x = MANDELBROT_X;
-  static float window_y = MANDELBROT_Y;
-  static float window_r = MANDELBROT_R;
-
-  static bool render = true;
-
-  HID_KEYBD_Info_TypeDef *info = 0; //MX_USBH_HID_KeyboardDecode();
-
-  if (info) {
-    switch (info->keys[0]) {
-    case KEY_KEYPAD_8_UP_ARROW:
-      window_y -= (window_r / 4.0);
-      render = true;
-      break;
-
-    case KEY_KEYPAD_2_DOWN_ARROW:
-      window_y += (window_r / 4.0);
-      render = true;
-      break;
-
-    case KEY_KEYPAD_4_LEFT_ARROW:
-      window_x -= (window_r / 4.0);
-      render = true;
-      break;
-
-    case KEY_KEYPAD_6_RIGHT_ARROW:
-      window_x += (window_r / 4.0);
-      render = true;
-      break;
-
-    case KEY_KEYPAD_PLUS:
-      window_r *= 1.25;
-      render = true;
-      break;
-
-    case KEY_KEYPAD_MINUS:
-      window_r *= 0.75;
-      render = true;
-      break;
-    }
-  }
-
-  if (render) {
-    screen_test_mandelbrot(ltdc_get_screen(), window_x, window_y, window_r,
-                   cancel_mandelbrot);
-
-    render = false;
-
-    size_t size =
-        snprintf(buffer, sizeof(buffer), "Rendered x=%e y=%e r=%e\r\n",
-                 window_x, window_y, window_r);
-    uart_transmit((uint8_t *)buffer, size);
-  }
-}
-*/
 
 struct terminal *global_terminal = NULL;
 struct terminal_config_ui *global_terminal_config_ui = NULL;
@@ -158,8 +89,9 @@ struct terminal_config_ui *global_terminal_config_ui = NULL;
 #define UART_RECEIVE_BUFFER_SIZE (1024 * 16)
 #define LOCAL_BUFFER_SIZE 256
 
-static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
-static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
+ __attribute__((section(".dma"))) static character_t uart_transmit_buffer[UART_TRANSMIT_BUFFER_SIZE];
+ __attribute__((section(".dma"))) static character_t uart_receive_buffer[UART_RECEIVE_BUFFER_SIZE];
+
 static character_t local_buffer[LOCAL_BUFFER_SIZE];
 
 static size_t local_head = 0;
@@ -173,8 +105,8 @@ static struct visual_cell default_cells[MAX_ROWS * MAX_COLS];
 static struct visual_cell alt_cells[MAX_ROWS * MAX_COLS];
 uint8_t tab_stops[TAB_STOPS_SIZE];
 
-__attribute__((
-    __section__(".flash_data"))) struct terminal_config terminal_config = {
+/*__attribute__((
+    __section__(".flash_data")))*/ struct terminal_config terminal_config = {
     .format_rows = FORMAT_24_ROWS,
 
     .baud_rate = BAUD_RATE_115200,
@@ -214,7 +146,7 @@ static void yield() {
 
   if (Appli_state == APPLICATION_READY) {
 
-    HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostHS);
+    HID_KEYBD_Info_TypeDef *info = USBH_HID_GetKeybdInfo(&hUsbHostFS);
 
     if (info && global_terminal) {
       bool menu = false;
@@ -295,6 +227,10 @@ static void screen_shift_left_callback(struct format format, size_t row,
   screen_shift_left(ltdc_get_screen(format), row, col, cols, inactive, yield);
 }
 
+#define MANDELBROT_X -0.7453
+#define MANDELBROT_Y 0.1127
+#define MANDELBROT_R 6.5e-4
+
 static void screen_test_callback(struct format format,
                                  enum screen_test screen_test) {
   struct screen *screen = ltdc_get_screen(format);
@@ -336,7 +272,7 @@ static void write_config(struct terminal_config *terminal_config_copy) {
 static void keyboard_set_leds(struct lock_state state) {
   uint8_t led_state =
       (state.scroll ? 0x4 : 0) | (state.caps ? 0x2 : 0) | (state.num ? 1 : 0);
-  while (USBH_HID_SetReport(&hUsbHostHS, 0x02, 0x0, &led_state, 1) == USBH_BUSY)
+  while (USBH_HID_SetReport(&hUsbHostFS, 0x02, 0x0, &led_state, 1) == USBH_BUSY)
     ;
 }
 
@@ -372,13 +308,13 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_LTDC_Init();
-  MX_USB_HOST_Init();
-  MX_TIM1_Init();
-  MX_FMC_Init();
   MX_UART7_Init();
+  MX_USB_HOST_Init();
+  MX_USB_DEVICE_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-  printf("Hello World\n");
+  HAL_GPIO_WritePin(READY_LED_GPIO_Port, READY_LED_Pin, GPIO_PIN_SET);
 
   struct terminal terminal;
   struct terminal_callbacks callbacks = {
@@ -417,7 +353,8 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1) {
+  while (1)
+  {
     /* USER CODE END WHILE */
     MX_USB_HOST_Process();
 
@@ -499,7 +436,7 @@ void SystemClock_Config(void)
   /** Configure the main internal regulator output voltage 
   */
   __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
@@ -510,6 +447,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLN = 144;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 6;
+  RCC_OscInitStruct.PLL.PLLR = 2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -521,16 +459,17 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV4;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
     Error_Handler();
   }
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC;
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_CLK48|RCC_PERIPHCLK_LTDC;
   PeriphClkInitStruct.PLLSAI.PLLSAIN = 50;
   PeriphClkInitStruct.PLLSAI.PLLSAIR = 2;
   PeriphClkInitStruct.PLLSAIDivR = RCC_PLLSAIDIVR_2;
+  PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48CLKSOURCE_PLLQ;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -540,27 +479,6 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
- /**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM6 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  /* USER CODE BEGIN Callback 0 */
-
-  /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM6) {
-    HAL_IncTick();
-  }
-  /* USER CODE BEGIN Callback 1 */
-
-  /* USER CODE END Callback 1 */
-}
 
 /**
   * @brief  This function is executed in case of error occurrence.

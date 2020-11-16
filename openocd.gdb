@@ -11,7 +11,7 @@ break main
 
 # send captured ITM to the file itm.fifo
 # (the microcontroller SWO pin must be connected to the programmer SWO pin)
-monitor tpiu config internal itm.txt uart off 144000000
+monitor tpiu config internal itm.txt uart off 72000000
 
 # enable ITM port 0
 monitor itm port 0 on

@@ -33,8 +33,6 @@
 
 /* USER CODE BEGIN INCLUDE */
 
-#include "usbh_hid.h"
-
 /* USER CODE END INCLUDE */
 
 /** @addtogroup USBH_OTG_DRIVER
