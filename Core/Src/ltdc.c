@@ -55,7 +55,7 @@ static const struct bitmap_font bold_bitmap_font = {
 
  __attribute__((section(".dma"))) static uint8_t screen_buffer[CHAR_WIDTH * CHAR_HEIGHT * 80 * 30];
 
-#define SCREEN_BUFFER &screen_buffer
+#define SCREEN_BUFFER (uint32_t)&screen_buffer
 
 static struct screen screen_24_rows = {
     .format = {.rows = 24, .cols = 80},
@@ -85,6 +85,14 @@ struct screen *ltdc_get_screen(struct format format) {
 
   return NULL;
 }
+
+static uint8_t reverse_byte(uint8_t byte) { 
+  uint8_t reversed_byte = 0; 
+  for (size_t i = 0; i < 8; i++)
+    if((byte & (1 << i))) 
+      reversed_byte |= 1 << (7 - i);   
+  return reversed_byte;
+} 
 
 /* USER CODE END 0 */
 
@@ -144,7 +152,17 @@ void MX_LTDC_Init(void)
     Error_Handler();
   }
 
-  if (HAL_LTDC_ConfigCLUT(&hltdc, (uint32_t *)rgb_table, RGB_TABLE_SIZE, 0) !=
+  // Fix CLUT for 3.0 board that has RGB2-7 pins reversed
+  uint32_t rgb_table_fixed[RGB_TABLE_SIZE];
+
+  for (size_t i = 0; i < RGB_TABLE_SIZE; ++i) {
+    uint32_t entry = rgb_table[i];
+    rgb_table_fixed[i] = reverse_byte((entry & 0xff) >> 2) |
+      (reverse_byte(((entry >> 8) & 0xff) >> 2) << 8) |
+      (reverse_byte(((entry >> 16) & 0xff) >> 2) << 16);
+  }
+
+  if (HAL_LTDC_ConfigCLUT(&hltdc, (uint32_t *)rgb_table_fixed, RGB_TABLE_SIZE, 0) !=
       HAL_OK) {
     Error_Handler();
   }
