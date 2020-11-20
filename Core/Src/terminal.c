@@ -6,7 +6,7 @@
 #ifdef TERMINAL_8BIT_COLOR
 #define PRODUCT_COPYRIGHT                                                      \
   "Copyright (C) 2019-2020 Peter Hizalev\r\n"                                  \
-  "https://github.com/petrohi/ascii_terminal\r\n"
+  "https://github.com/petrohi/color_terminal\r\n"
 #else
 #define PRODUCT_COPYRIGHT                                                      \
   "Copyright (C) 2019-2020 Peter Hizalev\r\n"                                  \
