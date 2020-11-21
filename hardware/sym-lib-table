@@ -1,0 +1,5 @@
+(sym_lib_table
+  (lib (name ascii_terminal_kicad)(type Legacy)(uri ${KIPRJMOD}/ascii_terminal_kicad.lib)(options "")(descr ""))
+  (lib (name UJ2-AH-4-TH)(type Legacy)(uri /home/peter/Downloads/UJ2-AH-4-TH/UJ2-AH-4-TH.lib)(options "")(descr ""))
+  (lib (name UJ2-MIBH2-4-SMT)(type Legacy)(uri /home/peter/Downloads/UJ2-MIBH2-4-SMT/UJ2-MIBH2-4-SMT.lib)(options "")(descr ""))
+)
