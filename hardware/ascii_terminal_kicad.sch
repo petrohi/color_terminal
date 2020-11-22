@@ -1086,17 +1086,17 @@ Wire Wire Line
 	10450 5700 10600 5700
 Connection ~ 10600 5700
 Text GLabel 10150 4500 0    50   Input ~ 0
-LTDC_B3
-Text GLabel 10150 4800 0    50   Input ~ 0
-LTDC_B4
-Text GLabel 10150 5100 0    50   Input ~ 0
-LTDC_B5
-Text GLabel 10150 5400 0    50   Input ~ 0
 LTDC_B6
+Text GLabel 10150 4800 0    50   Input ~ 0
+LTDC_B5
+Text GLabel 10150 5100 0    50   Input ~ 0
+LTDC_B4
+Text GLabel 10150 5400 0    50   Input ~ 0
+LTDC_B3
 Text GLabel 10150 5700 0    50   Input ~ 0
-LTDC_B7
-Text GLabel 10150 4200 0    50   Input ~ 0
 LTDC_B2
+Text GLabel 10150 4200 0    50   Input ~ 0
+LTDC_B7
 $Comp
 L power:GND #PWR036
 U 1 1 5F12ABB8
@@ -1308,17 +1308,17 @@ Wire Wire Line
 	8900 5700 9050 5700
 Connection ~ 9050 5700
 Text GLabel 8600 4500 0    50   Input ~ 0
-LTDC_G3
-Text GLabel 8600 4800 0    50   Input ~ 0
-LTDC_G4
-Text GLabel 8600 5100 0    50   Input ~ 0
-LTDC_G5
-Text GLabel 8600 5400 0    50   Input ~ 0
 LTDC_G6
+Text GLabel 8600 4800 0    50   Input ~ 0
+LTDC_G5
+Text GLabel 8600 5100 0    50   Input ~ 0
+LTDC_G4
+Text GLabel 8600 5400 0    50   Input ~ 0
+LTDC_G3
 Text GLabel 8600 5700 0    50   Input ~ 0
-LTDC_G7
-Text GLabel 8600 4200 0    50   Input ~ 0
 LTDC_G2
+Text GLabel 8600 4200 0    50   Input ~ 0
+LTDC_G7
 $Comp
 L power:GND #PWR032
 U 1 1 5F16C959
@@ -1485,17 +1485,17 @@ Wire Wire Line
 	7350 5700 7500 5700
 Connection ~ 7500 5700
 Text GLabel 7050 4500 0    50   Input ~ 0
-LTDC_R3
-Text GLabel 7050 4800 0    50   Input ~ 0
-LTDC_R4
-Text GLabel 7050 5100 0    50   Input ~ 0
-LTDC_R5
-Text GLabel 7050 5400 0    50   Input ~ 0
 LTDC_R6
+Text GLabel 7050 4800 0    50   Input ~ 0
+LTDC_R5
+Text GLabel 7050 5100 0    50   Input ~ 0
+LTDC_R4
+Text GLabel 7050 5400 0    50   Input ~ 0
+LTDC_R3
 Text GLabel 7050 5700 0    50   Input ~ 0
-LTDC_R7
-Text GLabel 7050 4200 0    50   Input ~ 0
 LTDC_R2
+Text GLabel 7050 4200 0    50   Input ~ 0
+LTDC_R7
 $Comp
 L power:GND #PWR024
 U 1 1 5F18BC74
